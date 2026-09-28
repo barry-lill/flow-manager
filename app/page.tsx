@@ -222,7 +222,8 @@ export default function Home() {
         <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <button onClick={signIn}>Sign in</button>
-        {authMessage && <p className="footnote">{authMessage}</p>}
+        <p className="footnote"><a href="/auth/forgot-password">Forgot your password?</a></p>
+        {authMessage && <p className="footnote">{authMessage}</p>
       </section>
     </main>
   );
