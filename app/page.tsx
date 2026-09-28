@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 type Stock = { stockCode: string; description: string; quantity: number; targetLevel: number; stockGroup: string };
 type PurchaseOrder = { poNumber: string; stockCode: string; description: string; supplier: string; orderDate: string; dueDate: string; quantityOutstanding: number };
 type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | "viewer" | "guk_viewer" };
+type Mapping = Record<string, string>;
 
 function first(row: Record<string, unknown>, names: string[]) {
   const key = Object.keys(row).find((k) => names.includes(k.trim()));
@@ -38,6 +39,8 @@ export default function Home() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "manager" | "viewer">("manager");
   const [inviteMessage, setInviteMessage] = useState("");
+  const [mappings, setMappings] = useState<Record<string, Mapping>>({});
+  const [mappingsReady, setMappingsReady] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
@@ -60,7 +63,26 @@ export default function Home() {
     const org = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
     const next = { orgId: data.org_id, orgName: org?.name ?? "", role: data.role as Membership["role"] };
     setMembership(next);
+    await loadMappings(next.orgId);
     loadData(next.orgId);
+  }
+
+  async function loadMappings(orgId: string) {
+    const { data: authData } = await supabase.auth.getSession();
+    const token = authData.session?.access_token;
+    if (!token) return;
+    const response = await fetch("/api/settings/mappings?orgId=" + orgId, {
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (!response.ok) return;
+    const result = await response.json();
+    const grouped: Record<string, Mapping> = {};
+    for (const row of result.mappings ?? []) {
+      if (!grouped[row.source_key]) grouped[row.source_key] = {};
+      grouped[row.source_key][row.field_key] = row.source_column;
+    }
+    setMappings(grouped);
+    setMappingsReady(true);
   }
 
   async function loadData(orgId: string) {
@@ -118,18 +140,28 @@ export default function Home() {
 
   async function importProducts(file: File) {
     if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
+    if (!mappingsReady || !mappings.stock) {
+      setMessage("Stock import is not configured. An administrator must complete Settings → Stock data first.");
+      return;
+    }
+    const required = ["stock_code", "description", "quantity", "target_level"];
+    if (required.some((key) => !mappings.stock[key])) {
+      setMessage("Stock mapping is incomplete. An administrator must map all required fields in Settings.");
+      return;
+    }
     setMessage("Importing products...");
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { cellDates: true });
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+    const map = mappings.stock;
     const imported: Stock[] = rows
-      .filter((row) => toNumber(first(row, ["ProductRecord.InactiveFlag", "InactiveFlag"])) !== 1)
+      .filter((row) => map.inactive_flag ? toNumber(row[map.inactive_flag]) !== 1 : true)
       .map((row) => ({
-        stockCode: String(first(row, ["ProductRecord.AccountReference", "AccountReference"]) ?? ""),
-        description: String(first(row, ["ProductRecord.Description", "Description"]) ?? ""),
-        quantity: toNumber(first(row, ["ProductRecord.QuantityInStock", "QuantityInStock"])),
-        targetLevel: toNumber(first(row, ["ProductRecord.QuantityReOrderLevel", "QuantityReOrderLevel"])),
-        stockGroup: String(first(row, ["ProductRecord.CategoryName", "CategoryName"]) ?? ""),
+        stockCode: String(row[map.stock_code] ?? "").trim(),
+        description: String(row[map.description] ?? ""),
+        quantity: toNumber(row[map.quantity]),
+        targetLevel: toNumber(row[map.target_level]),
+        stockGroup: map.stock_group ? String(row[map.stock_group] ?? "") : "",
       })).filter((s) => s.stockCode);
 
     const { error: deleteError } = await supabase.from("stock").delete().eq("org_id", membership.orgId);
@@ -142,20 +174,30 @@ export default function Home() {
 
   async function importPurchaseOrders(file: File) {
     if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
+    if (!mappingsReady || !mappings.purchase_orders) {
+      setMessage("Purchase order import is not configured. An administrator must complete Settings → Purchase orders first.");
+      return;
+    }
+    const required = ["po_number", "due_date", "stock_code", "quantity"];
+    if (required.some((key) => !mappings.purchase_orders[key])) {
+      setMessage("Purchase order mapping is incomplete. An administrator must map all required fields in Settings.");
+      return;
+    }
     setMessage("Importing purchase orders...");
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { cellDates: true });
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+    const map = mappings.purchase_orders;
     const imported: PurchaseOrder[] = rows.map((row) => {
-      const ordered = toNumber(first(row, ["PurchaseOrderItem.Quantity", "Quantity"]));
-      const delivered = toNumber(first(row, ["PurchaseOrderItem.QuantityDelivered", "QuantityDelivered"]));
+      const ordered = toNumber(row[map.quantity]);
+      const delivered = map.quantity_delivered ? toNumber(row[map.quantity_delivered]) : 0;
       return {
-        poNumber: String(first(row, ["PurchaseOrder.Number", "Number"]) ?? ""),
-        stockCode: String(first(row, ["PurchaseOrderItem.ProductAccountReference", "ProductAccountReference"]) ?? ""),
-        description: String(first(row, ["PurchaseOrderItem.Description", "Description"]) ?? ""),
-        supplier: String(first(row, ["PurchaseOrder.AccountName", "AccountName"]) ?? ""),
-        orderDate: parseDate(first(row, ["PurchaseOrder.Date", "Date"])),
-        dueDate: parseDate(first(row, ["PurchaseOrder.DateDelivery", "DateDelivery"])),
+        poNumber: String(row[map.po_number] ?? "").trim(),
+        stockCode: String(row[map.stock_code] ?? "").trim(),
+        description: map.description ? String(row[map.description] ?? "") : "",
+        supplier: map.supplier ? String(row[map.supplier] ?? "") : "",
+        orderDate: map.order_date ? parseDate(row[map.order_date]) : "",
+        dueDate: parseDate(row[map.due_date]),
         quantityOutstanding: Math.max(0, ordered - delivered),
       };
     }).filter((p) => p.poNumber && p.stockCode && p.quantityOutstanding > 0);
