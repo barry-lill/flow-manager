@@ -26,6 +26,7 @@ function parseDate(value: unknown) {
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [gukCheckComplete, setGukCheckComplete] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
@@ -55,7 +56,10 @@ export default function Home() {
 
   async function checkGukBackOffice() {
     const token = session?.access_token;
-    if (!token) return loadMembership();
+    if (!token) {
+      setGukCheckComplete(true);
+      return loadMembership();
+    }
     const response = await fetch("/api/backoffice/access", {
       headers: { Authorization: "Bearer " + token },
     });
@@ -66,6 +70,7 @@ export default function Home() {
         return;
       }
     }
+    setGukCheckComplete(true);
     loadMembership();
   }
 
@@ -246,6 +251,8 @@ export default function Home() {
       </section>
     </main>
   );
+
+  if (session && !gukCheckComplete) return <main><section className="hero"><h2>Flow Manager</h2><p>Checking account...</p></section></main>;
 
   if (!membership) return (
     <main>
