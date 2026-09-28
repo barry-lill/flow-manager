@@ -48,7 +48,26 @@ export default function Home() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => { if (session) loadMembership(); }, [session]);
+  useEffect(() => {
+    if (!session) return;
+    checkGukBackOffice();
+  }, [session]);
+
+  async function checkGukBackOffice() {
+    const token = session?.access_token;
+    if (!token) return loadMembership();
+    const response = await fetch("/api/backoffice/access", {
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (response.ok) {
+      const result = await response.json();
+      if (result.allowed) {
+        window.location.href = "/backoffice";
+        return;
+      }
+    }
+    loadMembership();
+  }
 
   async function loadMembership() {
     const { data, error } = await supabase
