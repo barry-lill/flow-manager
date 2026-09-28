@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 type Stock = { stockCode: string; description: string; quantity: number; targetLevel: number; stockGroup: string };
 type PurchaseOrder = { poNumber: string; stockCode: string; description: string; supplier: string; orderDate: string; dueDate: string; quantityOutstanding: number };
-type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | "viewer" };
+type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | "viewer" | "guk_viewer" };
 
 function first(row: Record<string, unknown>, names: string[]) {
   const key = Object.keys(row).find((k) => names.includes(k.trim()));
@@ -117,7 +117,7 @@ export default function Home() {
   }
 
   async function importProducts(file: File) {
-    if (!membership || membership.role === "viewer") return;
+    if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
     setMessage("Importing products...");
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { cellDates: true });
@@ -141,7 +141,7 @@ export default function Home() {
   }
 
   async function importPurchaseOrders(file: File) {
-    if (!membership || membership.role === "viewer") return;
+    if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
     setMessage("Importing purchase orders...");
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { cellDates: true });
@@ -202,7 +202,7 @@ export default function Home() {
     <main>
       <header className="topbar">
         <div><div className="eyebrow">FLOW MANAGER</div><h1>Flow, without the fuss.</h1><p>{membership.orgName} · {membership.role}</p></div>
-        <div><span className="version">v0.1</span> <button onClick={signOut}>Sign out</button></div>
+        <div><span className="version">v0.2</span> <button onClick={signOut}>Sign out</button></div>
       </header>
 
       {membership.role === "admin" && <section className="card">
