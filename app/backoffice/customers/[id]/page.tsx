@@ -5,24 +5,62 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type Customer = { id: string; name: string; created_at: string; organization_modules: { module_key: string; enabled: boolean }[]; data_sources: { source_key: string; name: string; configured: boolean }[] };
+type Module = { key: string; name: string; sort_order: number };
+type Customer = {
+  id: string; name: string; created_at: string;
+  organization_modules: { module_key: string; enabled: boolean }[];
+  data_sources: { source_key: string; name: string; configured: boolean }[];
+};
 
 export default function CustomerDetail() {
   const params = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [modules, setModules] = useState<Module[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState("Loading customer...");
+  const [saving, setSaving] = useState(false);
+
+  async function token() {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || "";
+  }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      const token = data.session?.access_token;
-      if (!token) { setMessage("Please sign in again."); return; }
-      const response = await fetch("/api/backoffice/customers/" + params.id, { headers: { Authorization: "Bearer " + token } });
-      const result = await response.json();
-      if (!response.ok) { setMessage(result.error || "Could not load customer."); return; }
-      setCustomer(result.customer);
+    (async () => {
+      const accessToken = await token();
+      if (!accessToken) { setMessage("Please sign in again."); return; }
+      const headers = { Authorization: "Bearer " + accessToken };
+      const [customerResponse, modulesResponse] = await Promise.all([
+        fetch("/api/backoffice/customers/" + params.id, { headers }),
+        fetch("/api/modules", { headers }),
+      ]);
+      const customerResult = await customerResponse.json();
+      const modulesResult = await modulesResponse.json();
+      if (!customerResponse.ok) { setMessage(customerResult.error || "Could not load customer."); return; }
+      if (!modulesResponse.ok) { setMessage(modulesResult.error || "Could not load Flow Manager areas."); return; }
+      const loaded = customerResult.customer as Customer;
+      setCustomer(loaded);
+      setModules(modulesResult.modules || []);
+      setSelected((loaded.organization_modules || []).filter((m) => m.enabled).map((m) => m.module_key));
       setMessage("");
-    });
+    })();
   }, [params.id]);
+
+  async function saveModules() {
+    setSaving(true);
+    setMessage("Saving Flow Manager areas...");
+    const accessToken = await token();
+    const response = await fetch("/api/backoffice/customers/" + params.id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+      body: JSON.stringify({ modules: selected }),
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) { setMessage(result.error || "Could not save Flow Manager areas."); return; }
+    setCustomer(result.customer);
+    setMessage("Flow Manager areas saved.");
+  }
 
   if (!customer) return <main><section className="hero"><p>{message}</p></section></main>;
 
@@ -30,13 +68,21 @@ export default function CustomerDetail() {
     <header className="topbar"><div><div className="eyebrow">FLOW MANAGER · GUK</div><h1>{customer.name}</h1><p>Customer administration</p></div><Link href="/backoffice">Back to customers</Link></header>
     <section className="card">
       <div className="section-heading"><div><h2>{customer.name}</h2><p>Created {new Date(customer.created_at).toLocaleDateString("en-GB")}</p></div></div>
-      <h3>Enabled Flow Manager areas</h3>
-      <div className="chips">{customer.organization_modules?.filter((m) => m.enabled).map((m) => <span className="chip selected" key={m.module_key}>{m.module_key}</span>)}</div>
+      <div className="section-heading"><div><h3>Flow Manager areas</h3><p>Select the areas this customer has access to. You can change these at any time.</p></div></div>
+      <div className="module-list">{modules.map((module) => (
+        <label className="module-option" key={module.key}>
+          <input type="checkbox" checked={selected.includes(module.key)}
+            onChange={() => setSelected(current => current.includes(module.key) ? current.filter(key => key !== module.key) : [...current, module.key])} />
+          <span>{module.name}</span>
+        </label>
+      ))}</div>
+      <button className="primary-action" disabled={saving} onClick={saveModules}>{saving ? "Saving..." : "Save Flow Manager areas"}</button>
+      {message && <p className="footnote">{message}</p>}
     </section>
     <section className="card">
       <h3>Data sources</h3>
       <div className="table-wrap"><table><thead><tr><th>Source</th><th>Configured</th></tr></thead><tbody>
-        {customer.data_sources?.map((source) => <tr key={source.source_key}><td>{source.name}</td><td>{source.configured ? "Yes" : "Not configured"}</td></tr>)}
+        {customer.data_sources?.map(source => <tr key={source.source_key}><td>{source.name}</td><td>{source.configured ? "Yes" : "Not configured"}</td></tr>)}
       </tbody></table></div>
     </section>
   </main>;
