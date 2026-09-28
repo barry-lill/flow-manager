@@ -24,6 +24,12 @@ insert into public.flow_modules(key,name,sort_order) values
  ('executive_dashboard','Executive Dashboard',100)
 on conflict (key) do update set name=excluded.name, sort_order=excluded.sort_order;
 
+alter table public.flow_modules enable row level security;
+
+create policy "authenticated users can read flow modules"
+  on public.flow_modules for select to authenticated
+  using (true);
+
 create table if not exists public.organization_modules (
   org_id uuid not null references public.organizations(id) on delete cascade,
   module_key text not null references public.flow_modules(key) on delete cascade,
