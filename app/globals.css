@@ -33,4 +33,15 @@ th { font-size:12px; color:#697586; text-transform:uppercase; letter-spacing:.05
 .status.black { background:#e4e4e4; color:#111; }
 .empty { padding:40px 10px; text-align:center; color:#697586; }
 .footnote { font-size:12px; }
-@media(max-width:700px){ main{padding:18px}.grid{grid-template-columns:1fr}.topbar{margin-bottom:20px} }
+.auth { max-width: 520px; }
+label { display:block; font-size:13px; font-weight:600; color:#4b5563; }
+label input, input, select { display:block; width:100%; margin-top:7px; padding:11px 12px; border:1px solid #cfd5dc; border-radius:8px; background:#fff; font:inherit; }
+.auth label + label { margin-top:14px; }
+.auth button, .primary-action { margin-top:16px; background:#17202a; color:#fff; }
+.form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+.form-grid label:last-child { grid-column:1 / -1; }
+.module-list { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.module-option { display:flex; align-items:center; gap:9px; padding:11px 12px; border:1px solid #e1e5ea; border-radius:9px; font-weight:600; }
+.module-option input { width:auto; margin:0; }
+button:disabled { opacity:.55; cursor:default; }
+@media(max-width:700px){ main{padding:18px}.grid{grid-template-columns:1fr}.topbar{margin-bottom:20px}.form-grid,.module-list{grid-template-columns:1fr} }
