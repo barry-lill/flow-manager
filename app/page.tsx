@@ -209,7 +209,7 @@ export default function Home() {
         <div className="section-heading"><div><h3>User management</h3><p>Invite people and choose their access level. No public sign-up.</p></div></div>
         <div className="invite-row">
           <input type="email" placeholder="User email address" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-          <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Membership["role"])}><option value="admin">Admin</option><option value="manager">Manager</option><option value="viewer">Viewer</option></select>
+          <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "admin" | "manager" | "viewer")}><option value="admin">Admin</option><option value="manager">Manager</option><option value="viewer">Viewer</option></select>
           <button onClick={inviteUser}>Send invitation</button>
         </div>
         {inviteMessage && <p className="footnote">{inviteMessage}</p>}
