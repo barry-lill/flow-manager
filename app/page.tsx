@@ -223,7 +223,7 @@ export default function Home() {
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <button onClick={signIn}>Sign in</button>
         <p className="footnote"><a href="/auth/forgot-password">Forgot your password?</a></p>
-        {authMessage && <p className="footnote">{authMessage}</p>
+        {authMessage && <p className="footnote">{authMessage}</p>}
       </section>
     </main>
   );
