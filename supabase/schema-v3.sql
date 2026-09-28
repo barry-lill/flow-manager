@@ -1,0 +1,50 @@
+-- Flow Manager v0.3: customer data-source mappings
+create table if not exists public.data_mappings (
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  source_key text not null,
+  field_key text not null,
+  source_column text not null default '',
+  required boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (org_id, source_key, field_key)
+);
+
+create table if not exists public.data_sources (
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  source_key text not null,
+  name text not null,
+  description text not null default '',
+  configured boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (org_id, source_key)
+);
+
+alter table public.data_mappings enable row level security;
+alter table public.data_sources enable row level security;
+
+create policy "members can read data mappings"
+  on public.data_mappings for select to authenticated
+  using (public.user_has_org_access(org_id));
+
+create policy "admins can manage data mappings"
+  on public.data_mappings for all to authenticated
+  using (public.user_is_org_admin(org_id))
+  with check (public.user_is_org_admin(org_id));
+
+create policy "members can read data sources"
+  on public.data_sources for select to authenticated
+  using (public.user_has_org_access(org_id));
+
+create policy "admins can manage data sources"
+  on public.data_sources for all to authenticated
+  using (public.user_is_org_admin(org_id))
+  with check (public.user_is_org_admin(org_id));
+
+create index if not exists data_mappings_org_idx on public.data_mappings(org_id);
+create index if not exists data_sources_org_idx on public.data_sources(org_id);
+
+insert into public.data_sources(source_key,name,description)
+values
+ ('stock','Stock data','The export containing current stock, target levels and stock groups.'),
+ ('purchase_orders','Purchase orders','The export containing open and part-delivered purchase orders.')
+on conflict (source_key) do nothing;
