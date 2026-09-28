@@ -43,8 +43,3 @@ create policy "admins can manage data sources"
 create index if not exists data_mappings_org_idx on public.data_mappings(org_id);
 create index if not exists data_sources_org_idx on public.data_sources(org_id);
 
-insert into public.data_sources(source_key,name,description)
-values
- ('stock','Stock data','The export containing current stock, target levels and stock groups.'),
- ('purchase_orders','Purchase orders','The export containing open and part-delivered purchase orders.')
-on conflict (source_key) do nothing;
