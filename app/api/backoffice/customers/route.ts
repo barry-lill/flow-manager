@@ -35,16 +35,41 @@ export async function POST(request: NextRequest) {
     if (orgError || !org) return NextResponse.json({ error: orgError?.message || "Could not create customer." }, { status: 400 });
 
     if (modules.length) {
-      await admin.from("organization_modules").insert(modules.map((module_key: string) => ({ org_id: org.id, module_key, enabled: true })));
-    await admin.from("data_sources").insert([{ org_id: org.id, source_key: "stock", name: "Stock data" }, { org_id: org.id, source_key: "purchase_orders", name: "Purchase orders" }]);
+      const { error: moduleError } = await admin.from("organization_modules").insert(modules.map((module_key: string) => ({ org_id: org.id, module_key, enabled: true })));
+      if (moduleError) {
+        await admin.from("organizations").delete().eq("id", org.id);
+        return NextResponse.json({ error: moduleError.message }, { status: 400 });
+      }
+    }
+    const { error: sourceError } = await admin.from("data_sources").insert([
+      { org_id: org.id, source_key: "stock", name: "Stock data" },
+      { org_id: org.id, source_key: "purchase_orders", name: "Purchase orders" },
+    ]);
+    if (sourceError) {
+      await admin.from("organizations").delete().eq("id", org.id);
+      return NextResponse.json({ error: sourceError.message }, { status: 400 });
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
-    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(primaryEmail, { redirectTo: `${siteUrl}/auth/invite` });
-    if (inviteError || !invited.user) return NextResponse.json({ error: inviteError?.message || "Customer created but primary invitation failed. You can retry from the customer user management." }, { status: 400 });
+    const { data: existingUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const existing = existingUsers?.users.find((u) => u.email?.toLowerCase() === primaryEmail) || null;
+    let primaryUserId = existing?.id || "";
 
-    await admin.from("memberships").insert({ org_id: org.id, user_id: invited.user.id, role: "admin" });
-    if (modules.length) await admin.from("membership_modules").insert(modules.map((module_key: string) => ({ org_id: org.id, user_id: invited.user!.id, module_key, enabled: true })));
+    if (!primaryUserId) {
+      const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(primaryEmail, { redirectTo: `${siteUrl}/auth/invite` });
+      if (inviteError || !invited.user) {
+        await admin.from("organizations").delete().eq("id", org.id);
+        return NextResponse.json({ error: inviteError?.message || "Primary administrator invitation failed." }, { status: 400 });
+      }
+      primaryUserId = invited.user.id;
+    }
+
+    const { error: membershipError } = await admin.from("memberships").insert({ org_id: org.id, user_id: primaryUserId, role: "admin" });
+    if (membershipError) {
+      await admin.from("organizations").delete().eq("id", org.id);
+      return NextResponse.json({ error: membershipError.message }, { status: 400 });
+    }
+    if (modules.length) await admin.from("membership_modules").insert(modules.map((module_key: string) => ({ org_id: org.id, user_id: primaryUserId, module_key, enabled: true })));
 
     if (gukEmail) {
       let gukUser: { id: string } | null = null;
