@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 
 type Mapping = { fieldKey:string; label:string; sourceColumn:string; required:boolean };
@@ -28,7 +29,7 @@ const definitions: Record<string, Mapping[]> = {
 export default function Settings() {
   const [orgId,setOrgId]=useState(""); const [orgName,setOrgName]=useState("");
   const [source,setSource]=useState("stock"); const [mapping,setMapping]=useState<Mapping[]>(definitions.stock);
-  const [columns,setColumns]=useState<string[]>([]); const [message,setMessage]=useState(""); const [allowed,setAllowed]=useState<boolean|null>(null);
+  const [columns,setColumns]=useState<string[]>([]); const [message,setMessage]=useState(""); const [allowed,setAllowed]=useState<boolean|null>(null); const [savedMappings,setSavedMappings]=useState<any[]>([]);
 
   useEffect(()=>{supabase.auth.getSession().then(async({data})=>{
     if(!data.session){setAllowed(false);return}
@@ -37,19 +38,44 @@ export default function Settings() {
     const org=Array.isArray(m.organizations)?m.organizations[0]:m.organizations;
     setOrgId(m.org_id);setOrgName(org?.name||"");setAllowed(true);
     const r=await fetch("/api/settings/mappings?orgId="+m.org_id,{headers:{Authorization:"Bearer "+data.session.access_token}});
-    if(r.ok){const x=await r.json(); applyMappings("stock",x.mappings||[]);}
+    if(r.ok){const x=await r.json(); setSavedMappings(x.mappings||[]); applyMappings("stock",x.mappings||[]);}
   })},[]);
 
   function applyMappings(key:string, saved:any[]) {
     setMapping(definitions[key].map(d=>({...d,sourceColumn:saved.find((x:any)=>x.source_key===key&&x.field_key===d.fieldKey)?.source_column||""})));
   }
-  function changeSource(key:string){setSource(key);applyMappings(key,[]);setColumns([]);}
+  function changeSource(key:string){setSource(key);applyMappings(key,savedMappings);setColumns([]);}
   function sample(file:File){
     const reader=new FileReader();
-    reader.onload=()=>{const text=String(reader.result||"");const first=text.split(/\r?\n/)[0];const cols=first.split(",").map(x=>x.replace(/^"|"$/g,"").trim()).filter(Boolean);setColumns(cols);
-      setMapping(definitions[source].map(d=>({...d,sourceColumn:cols.find(c=>c.toLowerCase().replace(/[._]/g,"").includes(d.label.toLowerCase().replace(/ /g,"")))||d.sourceColumn})));
+    reader.onload=()=> {
+      try {
+        const workbook=XLSX.read(reader.result,{type:"array",cellDates:true});
+        const sheet=workbook.Sheets[workbook.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{header:1,defval:"",range:0});
+        const cols=(rows[0] as unknown[] || []).map(v=>String(v).trim()).filter(Boolean);
+        setColumns(cols);
+        setMapping(definitions[source].map(d=>({...d,sourceColumn:bestMatch(d,cols)||d.sourceColumn})));
+      } catch { setMessage("Could not read that sample file."); }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
+  }
+
+  function bestMatch(def:Mapping, cols:string[]) {
+    const aliases:Record<string,string[]>={
+      stock_code:["stock code","account reference","productrecord.accountreference","productaccountreference"],
+      description:["description","productrecord.description","purchaseorderitem.description"],
+      quantity:["quantity","quantity in stock","productrecord.quantityinstock","purchaseorderitem.quantity"],
+      target_level:["target stock","reorder level","quantity reorder level","productrecord.quantityreorderlevel"],
+      stock_group:["stock group","category","category name","productrecord.categoryname"],
+      inactive_flag:["inactive flag","inactiveflag","productrecord.inactiveflag"],
+      po_number:["po number","number","purchaseorder.number"],
+      order_date:["order date","date","purchaseorder.date"],
+      due_date:["due date","delivery date","datedelivery","purchaseorder.datedelivery"],
+      supplier:["supplier","account name","purchaseorder.accountname"],
+      quantity_delivered:["quantity delivered","delivered","purchaseorderitem.quantitydelivered"]
+    };
+    const wanted=[def.label.toLowerCase(),...(aliases[def.fieldKey]||[])].map(x=>x.replace(/[^a-z0-9]/g,""));
+    return cols.find(c=>wanted.includes(c.toLowerCase().replace(/[^a-z0-9]/g,"")));
   }
   async function save(){
     setMessage("Saving mapping...");
@@ -64,7 +90,7 @@ export default function Settings() {
       <div className="chips">{["stock","purchase_orders"].map(k=><button key={k} className={source===k?"chip selected":"chip"} onClick={()=>changeSource(k)}>{k==="stock"?"Stock data":"Purchase orders"}</button>)}</div>
     </section>
     <section className="card"><div className="section-heading"><div><h3>Field mapping</h3><p>Upload a sample CSV to see its columns, then confirm the mapping.</p></div></div>
-      <label className="upload secondary"><span>Upload sample CSV</span><input type="file" accept=".csv,.txt" onChange={e=>e.target.files?.[0]&&sample(e.target.files[0])}/></label>
+      <label className="upload secondary"><span>Upload sample file</span><input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e=>e.target.files?.[0]&&sample(e.target.files[0])}/></label>
       {columns.length>0&&<p className="footnote">Detected {columns.length} columns from the sample.</p>}
       <div className="mapping-table"><div className="mapping-head"><span>Flow Manager field</span><span>Source column</span><span>Required</span></div>
       {mapping.map((m,i)=><div className="mapping-row" key={m.fieldKey}><strong>{m.label}</strong><select value={m.sourceColumn} onChange={e=>setMapping(a=>a.map((x,j)=>j===i?{...x,sourceColumn:e.target.value}:x))}><option value="">Not mapped</option>{columns.map(c=><option key={c} value={c}>{c}</option>)}{m.sourceColumn&&!columns.includes(m.sourceColumn)&&<option value={m.sourceColumn}>{m.sourceColumn}</option>}</select><span>{m.required?"Yes":"Optional"}</span></div>)}</div>
