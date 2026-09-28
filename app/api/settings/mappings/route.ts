@@ -17,10 +17,14 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const orgId = request.nextUrl.searchParams.get("orgId");
   if (!orgId) return NextResponse.json({ error: "Organisation is required." }, { status: 400 });
-  const client = createClient(url!, key!);
+
+  const admin = createClient(url!, process.env.SUPABASE_SECRET_KEY!, { auth: { autoRefreshToken:false, persistSession:false } });
+  const { data: membership } = await admin.from("memberships").select("role").eq("org_id", orgId).eq("user_id", user.id).maybeSingle();
+  if (!membership) return NextResponse.json({ error: "You do not have access to this organisation." }, { status: 403 });
+
   const [{ data: sources, error: sourceError }, { data: mappings, error: mappingError }] = await Promise.all([
-    client.from("data_sources").select("source_key,name,description,configured").eq("org_id", orgId),
-    client.from("data_mappings").select("source_key,field_key,source_column,required").eq("org_id", orgId),
+    admin.from("data_sources").select("source_key,name,description,configured").eq("org_id", orgId),
+    admin.from("data_mappings").select("source_key,field_key,source_column,required").eq("org_id", orgId),
   ]);
   if (sourceError || mappingError) return NextResponse.json({ error: sourceError?.message || mappingError?.message }, { status: 500 });
   return NextResponse.json({ sources: sources || [], mappings: mappings || [] });
