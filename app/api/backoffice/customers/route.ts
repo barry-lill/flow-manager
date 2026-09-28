@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (modules.length) {
       await admin.from("organization_modules").insert(modules.map((module_key: string) => ({ org_id: org.id, module_key, enabled: true })));
+    await admin.from("data_sources").insert([{ org_id: org.id, source_key: "stock", name: "Stock data" }, { org_id: org.id, source_key: "purchase_orders", name: "Purchase orders" }]);
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
