@@ -21,6 +21,10 @@ export default function BackOffice() {
       if (!data.session) { setAllowed(false); return; }
       setEmail(data.session.user.email || "");
       const token = data.session.access_token;
+      const accessResponse = await fetch("/api/backoffice/access", { headers: { Authorization: `Bearer ${token}` } });
+      const accessResult = await accessResponse.json();
+      if (!accessResponse.ok || !accessResult.allowed) { setAllowed(false); return; }
+
       const response = await fetch("/api/modules", { headers: { Authorization: `Bearer ${token}` } });
       const result = await response.json();
       if (!response.ok) { setAllowed(false); return; }
