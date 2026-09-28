@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
     const { data: existingUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const existing = existingUsers?.users.find((u) => u.email?.toLowerCase() === primaryEmail) || null;
     let primaryUserId = existing?.id || "";
+    let invitationSent = false;
 
     if (!primaryUserId) {
       const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(primaryEmail, { redirectTo: `${siteUrl}/auth/invite` });
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: inviteError?.message || "Primary administrator invitation failed." }, { status: 400 });
       }
       primaryUserId = invited.user.id;
+      invitationSent = true;
     }
 
     const { error: membershipError } = await admin.from("memberships").insert({ org_id: org.id, user_id: primaryUserId, role: "admin" });
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
       if (gukUser) await admin.from("memberships").upsert({ org_id: org.id, user_id: gukUser.id, role: "guk_viewer" }, { onConflict: "org_id,user_id" });
     }
 
-    return NextResponse.json({ ok: true, organization: org });
+    return NextResponse.json({ ok: true, organization: org, invitationSent });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unexpected error." }, { status: 500 });
   }
