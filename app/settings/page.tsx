@@ -51,7 +51,7 @@ export default function Settings() {
       try {
         const workbook=XLSX.read(reader.result,{type:"array",cellDates:true});
         const sheet=workbook.Sheets[workbook.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json<Record<string,unknown>>(sheet,{header:1,defval:"",range:0});
+        const rows=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:"",range:0});
         const cols=(rows[0] as unknown[] || []).map(v=>String(v).trim()).filter(Boolean);
         setColumns(cols);
         setMapping(definitions[source].map(d=>({...d,sourceColumn:bestMatch(d,cols)||d.sourceColumn})));
