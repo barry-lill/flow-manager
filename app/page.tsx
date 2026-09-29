@@ -91,14 +91,16 @@ function PurchaseOrdersSection({ orders, stocks }: {
       }
     }
 
-    // Keep the purchase-order sequence visible: earliest due dates first.
-    // Within the same date, use order date and then stock code.
-    return output.sort((a, b) =>
-      (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
-      (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31") ||
-      a.stockCode.localeCompare(b.stockCode) ||
-      a.poNumber.localeCompare(b.poNumber)
-    );
+    // Prioritise the current buffer position. Due date is deliberately not
+    // part of the display order: PTA is managed by buffer, not by due date.
+    return output.sort((a, b) => {
+      const aPct = Number.isFinite(a.projectedPct) ? a.projectedPct : Infinity;
+      const bPct = Number.isFinite(b.projectedPct) ? b.projectedPct : Infinity;
+      return aPct - bPct ||
+        a.supplier.localeCompare(b.supplier) ||
+        a.stockCode.localeCompare(b.stockCode) ||
+        a.poNumber.localeCompare(b.poNumber);
+    });
   }, [orders, stockByCode]);
 
   return <section className="card" id="purchase-orders">
