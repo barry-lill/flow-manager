@@ -45,6 +45,7 @@ export default function Home() {
   const [groups, setGroups] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [includeZeroStock, setIncludeZeroStock] = useState(false);
+  const [visibleRowCount, setVisibleRowCount] = useState(100);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [message, setMessage] = useState("Loading Flow Manager...");
   const [orgName, setOrgName] = useState("");
@@ -272,6 +273,18 @@ export default function Home() {
 
   const hasModule = (key: string) => enabledModules.includes(key);
 
+  useEffect(() => { setVisibleRowCount(100); }, [stocks]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
+        setVisibleRowCount(current => Math.min(current + 100, visibleStocks.length));
+      }
+    };
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [visibleStocks.length]);
+
   const visibleStocks = useMemo(() => [...stocks].sort((a, b) => {
     const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
     const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
@@ -361,7 +374,7 @@ export default function Home() {
       {hasModule("stock") && <section className="card">
         <div className="section-heading"><div><h3>Stock</h3><p>Current Sage 50 stock position.</p></div></div>
         <div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Stock % of target</th></tr></thead><tbody>
-          {visibleStocks.slice(0, 100).map((stock) => {
+          {visibleStocks.slice(0, visibleRowCount).map((stock) => {
             const pct = stock.targetLevel > 0 ? (stock.quantity / stock.targetLevel) * 100 : stock.quantity > 0 ? Infinity : 0;
             const status = pct === Infinity ? "blue" : pct > 100 ? "blue" : pct >= 66 ? "green" : pct >= 33 ? "orange" : pct > 0 ? "red" : "black";
             const percentage = pct === Infinity ? "—" : `${Math.round(pct)}%`;
