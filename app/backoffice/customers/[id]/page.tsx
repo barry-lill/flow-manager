@@ -83,6 +83,19 @@ export default function CustomerDetail() {
       {message && <p className="footnote">{message}</p>}
     </section>
     <section className="card">
+      <div className="section-heading">
+        <div>
+          <h3>Customer access</h3>
+          <p>Email addresses that currently have access to this customer.</p>
+        </div>
+        <a href={"/?preview=1&customer=" + customer.id} className="primary-action">Open customer view</a>
+      </div>
+      <div className="table-wrap"><table><thead><tr><th>Email address</th><th>Access</th></tr></thead><tbody>
+        {users.map((user) => <tr key={user.email + user.role}><td>{user.email}</td><td>{user.role === "guk_viewer" ? "GUK view-only" : user.role}</td></tr>)}
+        {users.length === 0 && <tr><td colSpan={2} className="empty">No users have access.</td></tr>}
+      </tbody></table></div>
+    </section>
+    <section className="card">
       <h3>Data sources</h3>
       <div className="table-wrap"><table><thead><tr><th>Source</th><th>Configured</th></tr></thead><tbody>
         {customer.data_sources?.map(source => <tr key={source.source_key}><td>{source.name}</td><td>{source.configured ? "Yes" : "Not configured"}</td></tr>)}
