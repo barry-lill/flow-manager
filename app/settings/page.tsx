@@ -91,9 +91,24 @@ export default function Settings() {
   }
   async function save(){
     setMessage("Saving mapping...");
-    const {data}=await supabase.auth.getSession();
-    const r=await fetch("/api/settings/mappings",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+data.session?.access_token},body:JSON.stringify({orgId,sourceKey:source,hasHeaders,headerRow,dataStartRow,mappings:mapping.map(m=>({fieldKey:m.fieldKey,sourceColumn:m.sourceColumn,required:m.required}))})});
-    const x=await r.json();setMessage(r.ok?"Mapping saved.":x.error||"Could not save mapping.");
+    try {
+      const {data}=await supabase.auth.getSession();
+      if(!data.session?.access_token){setMessage("Your session has expired. Please sign in again.");return;}
+      const r=await fetch("/api/settings/mappings",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+data.session.access_token},body:JSON.stringify({orgId,sourceKey:source,hasHeaders,headerRow,dataStartRow,mappings:mapping.map(m=>({fieldKey:m.fieldKey,sourceColumn:m.sourceColumn,required:m.required}))})});
+      const x=await r.json().catch(()=>({error:"The server returned an invalid response."}));
+      if(!r.ok){setMessage(x.error||"Could not save mapping.");return;}
+      const refreshed=await fetch("/api/settings/mappings?orgId="+orgId,{headers:{Authorization:"Bearer "+data.session.access_token}});
+      if(refreshed.ok){
+        const fresh=await refreshed.json();
+        setSavedMappings(fresh.mappings||[]);
+        setSourceSettings(fresh.sources||[]);
+        applySourceSettings(fresh.sources||[],source);
+        applyMappings(source,fresh.mappings||[]);
+      }
+      setMessage("Mapping saved.");
+    } catch(error) {
+      setMessage(error instanceof Error ? error.message : "Could not save mapping.");
+    }
   }
   if(allowed===null)return <main><section className="hero"><h2>Settings</h2><p>Checking access...</p></section></main>;
   if(!allowed)return <main><section className="card auth"><h2>Access denied</h2><p>Only the customer administrator can configure data mappings.</p></section></main>;
