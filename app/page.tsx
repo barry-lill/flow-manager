@@ -261,7 +261,7 @@ export default function Home() {
         <button onClick={signIn}>Sign in</button>
         <p className="footnote"><a href="/auth/forgot-password">Forgot your password?</a></p>
         {authMessage && <p className="footnote">{authMessage}</p>}
-      </section>}
+      </section>
     </main>
   );
 
@@ -286,11 +286,11 @@ export default function Home() {
         <div><div className="eyebrow">FLOW MANAGER</div><h1>Flow, without the fuss.</h1><p>{membership.orgName} · {membership.role}</p></div>
         <div className="top-actions">
           {hasModule("stock") && <button onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}>Stock</button>}
-          {hasModule("pta") && <button onClick={() => setMessage("PTA module is enabled. The daily replenishment screen is the next build step.")}>PTA</button>}
-          {hasModule("purchase_orders") && <button onClick={() => setMessage("Purchase Orders module is enabled. The priority screen is the next build step.")}>Purchase Orders</button>}
-          {hasModule("dbr") && <button onClick={() => setMessage("DBR module is enabled. The daily buffer review is the next build step.")}>DBR</button>}
+          {hasModule("pta") && <button onClick={() => setMessage("PTA module is enabled. The daily replenishment screen is next.")}>PTA</button>}
+          {hasModule("purchase_orders") && <button onClick={() => setMessage("Purchase Orders module is enabled. The priority screen is next.")}>Purchase Orders</button>}
+          {hasModule("dbr") && <button onClick={() => setMessage("DBR module is enabled. The daily buffer review is next.")}>DBR</button>}
           {membership.role === "admin" && <button onClick={() => window.location.href="/settings"}>Settings</button>}
-          <span className="version">v0.3</span> <button onClick={signOut}>Sign out</button>
+          <span className="version">v0.3</span><button onClick={signOut}>Sign out</button>
         </div>
       </header>
 
@@ -304,21 +304,35 @@ export default function Home() {
         {inviteMessage && <p className="footnote">{inviteMessage}</p>}
       </section>}
 
-      <section className="hero"><h2>{membership.orgName}</h2><p>{message}</p>
+      <section className="hero">
+        <h2>{membership.orgName}</h2><p>{message}</p>
         {enabledModules.length === 0 && <p className="footnote">No Flow Manager areas have been enabled for this customer. Ask your administrator to enable the required areas.</p>}
         {hasModule("stock") && <div className="uploads">
-        <label className="upload"><span>Import Sage Product Details</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importProducts(e.target.files[0])} /></label>
-        <label className="upload secondary"><span>Import Sage Purchase Orders</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importPurchaseOrders(e.target.files[0])} /></label>
-      </div></section>
+          <label className="upload"><span>Import Sage Product Details</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importProducts(e.target.files[0])} /></label>
+        </div>}
+        {hasModule("purchase_orders") && <div className="uploads">
+          <label className="upload secondary"><span>Import Sage Purchase Orders</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importPurchaseOrders(e.target.files[0])} /></label>
+        </div>}
+      </section>
 
-      {groups.length > 0 && <section className="card"><div className="section-heading"><div><h3>Stock Groups</h3><p>All active products are imported. Choose what to display.</p></div><button onClick={() => setSelectedGroups([])}>Show all</button></div><div className="chips">{groups.map((group) => <button key={group} className={selectedGroups.includes(group) ? "chip selected" : "chip"} onClick={() => setSelectedGroups((current) => current.includes(group) ? current.filter((g) => g !== group) : [...current, group])}>{group || "(No group)"}</button>)}</div></section>}
+      {hasModule("stock") && groups.length > 0 && <section className="card">
+        <div className="section-heading"><div><h3>Stock Groups</h3><p>All active products are imported. Choose what to display.</p></div><button onClick={() => setSelectedGroups([])}>Show all</button></div>
+        <div className="chips">{groups.map((group) => <button key={group} className={selectedGroups.includes(group) ? "chip selected" : "chip"} onClick={() => setSelectedGroups((current) => current.includes(group) ? current.filter((g) => g !== group) : [...current, group])}>{group || "(No group)"}</button>)}</div>
+      </section>}
 
-      {hasModule("stock") && <section className="grid"><div className="card metric"><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong></div><div className="card metric"><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong></div><div className="card metric"><span>Groups</span><strong>{groups.length.toLocaleString()}</strong></div></section>}
+      {hasModule("stock") && <section className="grid">
+        <div className="card metric"><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong></div>
+        <div className="card metric"><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong></div>
+        <div className="card metric"><span>Groups</span><strong>{groups.length.toLocaleString()}</strong></div>
+      </section>}
 
-      {hasModule("stock") && <section className="card"><div className="section-heading"><div><h3>Stock</h3><p>Current Sage 50 stock position.</p></div></div><div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Buffer</th></tr></thead><tbody>
-        {visibleStocks.slice(0, 100).map((stock) => { const pct = stock.targetLevel > 0 ? stock.quantity / stock.targetLevel : 0; const status = pct > 1 ? "blue" : pct >= .66 ? "green" : pct >= .33 ? "yellow" : pct > 0 ? "red" : "black"; return <tr key={stock.stockCode}><td>{stock.stockCode}</td><td>{stock.description}</td><td>{stock.stockGroup}</td><td>{stock.quantity}</td><td>{stock.targetLevel}</td><td><span className={`status ${status}`}>{status}</span></td></tr>; })}
-        {visibleStocks.length === 0 && <tr><td colSpan={6} className="empty">No stock data yet.</td></tr>}
-      </tbody></table></div>{visibleStocks.length > 100 && <p className="footnote">Showing the first 100 rows for now.</p>}</section>
+      {hasModule("stock") && <section className="card">
+        <div className="section-heading"><div><h3>Stock</h3><p>Current Sage 50 stock position.</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Buffer</th></tr></thead><tbody>
+          {visibleStocks.slice(0, 100).map((stock) => { const pct = stock.targetLevel > 0 ? stock.quantity / stock.targetLevel : 0; const status = pct > 1 ? "blue" : pct >= .66 ? "green" : pct >= .33 ? "yellow" : pct > 0 ? "red" : "black"; return <tr key={stock.stockCode}><td>{stock.stockCode}</td><td>{stock.description}</td><td>{stock.stockGroup}</td><td>{stock.quantity}</td><td>{stock.targetLevel}</td><td><span className={`status ${status}`}>{status}</span></td></tr>; })}
+          {visibleStocks.length === 0 && <tr><td colSpan={6} className="empty">No stock data yet.</td></tr>}
+        </tbody></table></div>{visibleStocks.length > 100 && <p className="footnote">Showing the first 100 rows for now.</p>}
+      </section>}
     </main>
   );
 }
