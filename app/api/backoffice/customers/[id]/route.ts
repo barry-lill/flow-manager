@@ -29,10 +29,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     for (const email of gukEmails) {
       const user = users?.users.find((u) => u.email?.toLowerCase() === email);
       if (user) {
-        await admin.from("memberships").upsert(
-          { org_id: id, user_id: user.id, role: "guk_viewer" },
-          { onConflict: "org_id,user_id" }
-        );
+        const { data: existingMembership } = await admin.from("memberships")
+          .select("role")
+          .eq("org_id", id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!existingMembership) {
+          await admin.from("memberships").insert({ org_id: id, user_id: user.id, role: "guk_viewer" });
+        }
       }
     }
   }
