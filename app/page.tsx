@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
@@ -50,7 +50,7 @@ function daysBetween(start: string, end: string) {
 
 function formatUKDate(value: string) {
   if (!value) return "—";
-  const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
@@ -61,7 +61,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
   const stockByCode = useMemo(() => new Map(stocks.map(stock => [stock.stockCode, stock])), [stocks]);
 
   const rows = useMemo(() => {
-    // Only show PO lines that have a stock reference which exists in the current stock data.
+    // A PO for a stock item with no target quantity is treated as PTO.
     const relevant = orders.filter(order => order.stockCode.trim() !== "" && stockByCode.has(order.stockCode));
 
     const grouped = new Map<string, PurchaseOrder[]>();
@@ -71,6 +71,8 @@ function PurchaseOrdersSection({ orders, stocks }: {
     }
 
     const output: Array<PurchaseOrder & { projectedPct: number; status: string }> = [];
+    const today = new Date();
+    const todayKey = \`\${today.getFullYear()}-\${String(today.getMonth() + 1).padStart(2, "0")}-\${String(today.getDate()).padStart(2, "0")}\`;
 
     for (const [stockCode, stockOrders] of grouped) {
       const stock = stockByCode.get(stockCode);
@@ -83,16 +85,22 @@ function PurchaseOrdersSection({ orders, stocks }: {
       );
 
       for (const order of sortedOrders) {
-        // Show the buffer before this PO arrives. The next PO is calculated
-        // against the stock position after all earlier POs for this stock code.
-        const pct = target > 0 ? (projected / target) * 100 : projected > 0 ? Infinity : 0;
-        output.push({ ...order, projectedPct: pct, status: bufferStatus(pct) });
-        projected += order.quantityOutstanding;
+        if (target <= 0) {
+          const totalDays = daysBetween(order.orderDate, order.dueDate);
+          const elapsedDays = daysBetween(order.orderDate, todayKey);
+          const pct = totalDays > 0
+            ? Math.max(0, Math.min(100, 100 - (elapsedDays / totalDays) * 100))
+            : todayKey < order.dueDate ? 100 : 0;
+
+          output.push({ ...order, workflowType: "PTO", projectedPct: pct, status: bufferStatus(pct) });
+        } else {
+          const pct = (projected / target) * 100;
+          output.push({ ...order, workflowType: "PTA", projectedPct: pct, status: bufferStatus(pct) });
+          projected += order.quantityOutstanding;
+        }
       }
     }
 
-    // Prioritise the current buffer position. Due date is deliberately not
-    // part of the display order: PTA is managed by buffer, not by due date.
     return output.sort((a, b) => {
       const aPct = Number.isFinite(a.projectedPct) ? a.projectedPct : Infinity;
       const bPct = Number.isFinite(b.projectedPct) ? b.projectedPct : Infinity;
@@ -107,27 +115,27 @@ function PurchaseOrdersSection({ orders, stocks }: {
     <div className="section-heading">
       <div>
         <h3>Purchase Orders</h3>
-        <p>POs are sequenced by due date. Buffer shows the stock position before each PO is received.</p>
+        <p>PTA is buffer managed. POs for stock with no target are treated as PTO and time-managed from order date to due date.</p>
       </div>
     </div>
     <div className="table-wrap"><table className="po-table"><thead><tr>
-      <th>PO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Buffer before receipt</th>
+      <th>PO</th><th>PTA/PTO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Buffer / time %</th>
     </tr></thead><tbody>
       {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + order.dueDate + "|" + index}>
         <td>{order.poNumber}</td>
+        <td>{order.workflowType}</td>
         <td>{order.stockCode}</td>
         <td>{order.description}</td>
         <td>{order.supplier}</td>
         <td>{formatUKDate(order.orderDate)}</td>
         <td>{formatUKDate(order.dueDate)}</td>
         <td>{order.quantityOutstanding}</td>
-        <td><span className={`po-status ${order.status}`}>{Number.isFinite(order.projectedPct) ? Math.round(order.projectedPct) + "%" : "—"}</span></td>
+        <td><span className={\`po-status \${order.status}\`}>{Math.round(order.projectedPct)}%</span></td>
       </tr>)}
-      {!rows.length && <tr><td colSpan={8} className="empty">No purchase orders with a stock reference were found.</td></tr>}
+      {!rows.length && <tr><td colSpan={9} className="empty">No purchase orders with a stock reference were found.</td></tr>}
     </tbody></table></div>
   </section>;
 }
-
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -153,6 +161,7 @@ export default function Home() {
   const [mappingsReady, setMappingsReady] = useState(false);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [isGukAdmin, setIsGukAdmin] = useState(false);
+  const scrollRestored = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
@@ -393,6 +402,54 @@ export default function Home() {
 
 
   const hasModule = (key: string) => enabledModules.includes(key);
+
+  useEffect(() => {
+    const customer = new URLSearchParams(window.location.search).get("customer") || "current";
+    const key = \`flow-manager-scroll:\${customer}\`;
+    let frame = 0;
+
+    const save = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => sessionStorage.setItem(key, String(window.scrollY)));
+    };
+
+    window.addEventListener("scroll", save, { passive: true });
+    window.addEventListener("pagehide", save);
+    return () => {
+      cancelAnimationFrame(frame);
+      sessionStorage.setItem(key, String(window.scrollY));
+      window.removeEventListener("scroll", save);
+      window.removeEventListener("pagehide", save);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!membershipReady || scrollRestored.current || (!stocks.length && !orders.length)) return;
+    const customer = new URLSearchParams(window.location.search).get("customer") || "current";
+    const saved = sessionStorage.getItem(\`flow-manager-scroll:\${customer}\`);
+    if (saved === null) {
+      scrollRestored.current = true;
+      return;
+    }
+
+    const target = Number(saved);
+    if (!Number.isFinite(target)) {
+      scrollRestored.current = true;
+      return;
+    }
+
+    let attempts = 0;
+    const restore = () => {
+      attempts += 1;
+      window.scrollTo(0, target);
+      if (Math.abs(window.scrollY - target) < 5 || attempts >= 12) {
+        scrollRestored.current = true;
+      } else {
+        requestAnimationFrame(restore);
+      }
+    };
+    requestAnimationFrame(restore);
+  }, [membershipReady, stocks.length, orders.length]);
 
   useEffect(() => { setVisibleRowCount(100); }, [stocks]);
 
