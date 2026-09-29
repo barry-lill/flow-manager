@@ -161,7 +161,7 @@ export default function Home() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    setMembership(null); setStocks([]); setOrders([]);
+    window.location.href = "/";
   }
 
   async function inviteUser() {
