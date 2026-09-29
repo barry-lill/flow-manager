@@ -31,6 +31,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [membershipReady, setMembershipReady] = useState(false);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
@@ -77,6 +78,7 @@ export default function Home() {
   }
 
   async function loadMembership() {
+    setMembershipReady(false);
     const previewOrg = new URLSearchParams(window.location.search).get("customer");
     let query = supabase
       .from("memberships")
@@ -85,12 +87,13 @@ export default function Home() {
     if (previewOrg) query = query.eq("org_id", previewOrg);
     const { data, error } = await query.maybeSingle();
 
-    if (error) { setMessage(error.message); return; }
-    if (!data) { setMembership(null); return; }
+    if (error) { setMessage(error.message); setMembershipReady(true); return; }
+    if (!data) { setMembership(null); setMembershipReady(true); return; }
 
     const org = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
     const next = { orgId: data.org_id, orgName: org?.name ?? "", role: data.role as Membership["role"] };
     setMembership(next);
+    setMembershipReady(true);
     await loadModules(next.orgId);
     await loadMappings(next.orgId);
     loadData(next.orgId);
@@ -269,6 +272,8 @@ export default function Home() {
   );
 
   if (session && !gukCheckComplete) return <main><section className="hero"><h2>Flow Manager</h2><p>Checking account...</p></section></main>;
+
+  if (!membershipReady) return <main><section className="hero"><h2>Flow Manager</h2><p>Loading customer...</p></section></main>;
 
   if (!membership) return (
     <main>
