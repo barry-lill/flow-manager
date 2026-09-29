@@ -11,7 +11,7 @@ type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | 
 type Mapping = Record<string, string>;
 
 function first(row: Record<string, unknown>, names: string[]) {
-  const key = Object.keys(row).find((k) => names.includes(k.trim()));
+    const key = `flow-manager-scroll:${customer}`;
   return key ? row[key] : undefined;
 }
 function toNumber(value: unknown) {
