@@ -38,7 +38,7 @@ function bufferStatus(pct: number) {
   if (pct >= 66) return "green";
   if (pct >= 33) return "orange";
   if (pct > 0) return "red";
-  return "black";
+  return "red";
 }
 
 function daysBetween(start: string, end: string) {
@@ -86,11 +86,14 @@ function PurchaseOrdersSection({ orders, stocks }: {
 
       for (const order of sortedOrders) {
         if (target <= 0) {
-          const totalDays = daysBetween(order.orderDate, order.dueDate);
-          const elapsedDays = daysBetween(order.orderDate, todayKey);
-          const pct = totalDays > 0
-            ? Math.max(0, Math.min(100, 100 - (elapsedDays / totalDays) * 100))
-            : todayKey < order.dueDate ? 100 : 0;
+          let pct = 100;
+          if (order.dueDate) {
+            const totalDays = daysBetween(order.orderDate, order.dueDate);
+            const elapsedDays = daysBetween(order.orderDate, todayKey);
+            pct = totalDays > 0
+              ? 100 - (elapsedDays / totalDays) * 100
+              : todayKey < order.dueDate ? 100 : 0;
+          }
 
           output.push({ ...order, workflowType: "PTO", projectedPct: pct, status: bufferStatus(pct) });
         } else {
@@ -406,25 +409,32 @@ export default function Home() {
   useEffect(() => {
     const customer = new URLSearchParams(window.location.search).get("customer") || "current";
     const key = `flow-manager-scroll:${customer}`;
-    let frame = 0;
 
     const save = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => sessionStorage.setItem(key, String(window.scrollY)));
+      sessionStorage.setItem(key, String(window.scrollY));
     };
 
     window.addEventListener("scroll", save, { passive: true });
     window.addEventListener("pagehide", save);
+    window.addEventListener("beforeunload", save);
+
+    const saveOnHidden = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    document.addEventListener("visibilitychange", saveOnHidden);
+
     return () => {
-      cancelAnimationFrame(frame);
-      sessionStorage.setItem(key, String(window.scrollY));
+      save();
       window.removeEventListener("scroll", save);
       window.removeEventListener("pagehide", save);
+      window.removeEventListener("beforeunload", save);
+      document.removeEventListener("visibilitychange", saveOnHidden);
     };
   }, []);
 
   useEffect(() => {
     if (!membershipReady || scrollRestored.current || (!stocks.length && !orders.length)) return;
+
     const customer = new URLSearchParams(window.location.search).get("customer") || "current";
     const saved = sessionStorage.getItem(`flow-manager-scroll:${customer}`);
     if (saved === null) {
@@ -442,14 +452,39 @@ export default function Home() {
     const restore = () => {
       attempts += 1;
       window.scrollTo(0, target);
-      if (Math.abs(window.scrollY - target) < 5 || attempts >= 12) {
+      if (Math.abs(window.scrollY - target) < 5 || attempts >= 20) {
         scrollRestored.current = true;
       } else {
         requestAnimationFrame(restore);
       }
     };
+
     requestAnimationFrame(restore);
   }, [membershipReady, stocks.length, orders.length]);
+
+  useEffect(() => {
+    const customer = new URLSearchParams(window.location.search).get("customer") || "current";
+    const key = `flow-manager-scroll:${customer}`;
+
+    const restoreAfterReturn = () => {
+      if (document.visibilityState === "hidden") return;
+      const saved = sessionStorage.getItem(key);
+      const target = Number(saved);
+      if (!Number.isFinite(target)) return;
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => window.scrollTo(0, target));
+      });
+    };
+
+    window.addEventListener("pageshow", restoreAfterReturn);
+    document.addEventListener("visibilitychange", restoreAfterReturn);
+
+    return () => {
+      window.removeEventListener("pageshow", restoreAfterReturn);
+      document.removeEventListener("visibilitychange", restoreAfterReturn);
+    };
+  }, []);
 
   useEffect(() => { setVisibleRowCount(100); }, [stocks]);
 
