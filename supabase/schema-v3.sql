@@ -43,3 +43,9 @@ create policy "admins can manage data sources"
 create index if not exists data_mappings_org_idx on public.data_mappings(org_id);
 create index if not exists data_sources_org_idx on public.data_sources(org_id);
 
+
+
+-- File layout settings for each customer data source.
+alter table public.data_sources add column if not exists has_headers boolean not null default true;
+alter table public.data_sources add column if not exists header_row integer not null default 1;
+alter table public.data_sources add column if not exists data_start_row integer not null default 2;
