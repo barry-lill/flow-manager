@@ -103,7 +103,7 @@ export default function Home() {
     if (!data) { setMembership(null); setMembershipReady(true); return; }
 
     const org = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
-    const next = { orgId: data.org_id, orgName: org?.name ?? "", role: data.role as Membership["role"] };
+    const next = { orgId: data.org_id, orgName: org?.name ?? "", role: isGukAdmin ? "admin" as Membership["role"] : data.role as Membership["role"] };
     setMembership(next);
     setMembershipReady(true);
     await loadModules(next.orgId);
@@ -201,7 +201,7 @@ export default function Home() {
   }
 
   async function importProducts(file: File) {
-    if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
+    if (!membership || (membership.role !== "admin" && membership.role !== "manager" && !isGukAdmin)) return;
     if (!mappingsReady || !mappings.stock) {
       setMessage("Stock import is not configured. An administrator must complete Settings → Stock data first.");
       return;
