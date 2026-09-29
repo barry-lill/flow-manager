@@ -38,7 +38,7 @@ function bufferStatus(pct: number) {
   if (pct >= 66) return "green";
   if (pct >= 33) return "orange";
   if (pct > 0) return "red";
-  return "red";
+  return "black";
 }
 
 function daysBetween(start: string, end: string) {
@@ -418,17 +418,11 @@ export default function Home() {
     window.addEventListener("pagehide", save);
     window.addEventListener("beforeunload", save);
 
-    const saveOnHidden = () => {
-      if (document.visibilityState === "hidden") save();
-    };
-    document.addEventListener("visibilitychange", saveOnHidden);
-
     return () => {
       save();
       window.removeEventListener("scroll", save);
       window.removeEventListener("pagehide", save);
       window.removeEventListener("beforeunload", save);
-      document.removeEventListener("visibilitychange", saveOnHidden);
     };
   }, []);
 
@@ -443,7 +437,7 @@ export default function Home() {
     }
 
     const target = Number(saved);
-    if (!Number.isFinite(target)) {
+    if (!Number.isFinite(target) || target <= 0) {
       scrollRestored.current = true;
       return;
     }
@@ -461,30 +455,6 @@ export default function Home() {
 
     requestAnimationFrame(restore);
   }, [membershipReady, stocks.length, orders.length]);
-
-  useEffect(() => {
-    const customer = new URLSearchParams(window.location.search).get("customer") || "current";
-    const key = `flow-manager-scroll:${customer}`;
-
-    const restoreAfterReturn = () => {
-      if (document.visibilityState === "hidden") return;
-      const saved = sessionStorage.getItem(key);
-      const target = Number(saved);
-      if (!Number.isFinite(target)) return;
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => window.scrollTo(0, target));
-      });
-    };
-
-    window.addEventListener("pageshow", restoreAfterReturn);
-    document.addEventListener("visibilitychange", restoreAfterReturn);
-
-    return () => {
-      window.removeEventListener("pageshow", restoreAfterReturn);
-      document.removeEventListener("visibilitychange", restoreAfterReturn);
-    };
-  }, []);
 
   useEffect(() => { setVisibleRowCount(100); }, [stocks]);
 
