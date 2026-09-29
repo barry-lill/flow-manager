@@ -51,6 +51,7 @@ export default function Home() {
   const [inviteRole, setInviteRole] = useState<"admin" | "manager" | "viewer">("manager");
   const [inviteMessage, setInviteMessage] = useState("");
   const [mappings, setMappings] = useState<Record<string, Mapping>>({});
+  const [mappingSettings, setMappingSettings] = useState<Record<string, any>>({});
   const [mappingsReady, setMappingsReady] = useState(false);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [isGukAdmin, setIsGukAdmin] = useState(false);
