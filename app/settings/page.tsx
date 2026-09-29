@@ -34,7 +34,10 @@ export default function Settings() {
   useEffect(()=>{supabase.auth.getSession().then(async({data})=>{
     if(!data.session){setAllowed(false);return}
     const {data:m}=await supabase.from("memberships").select("org_id,role,organizations(name)").eq("user_id",data.session.user.id).maybeSingle();
-    if(!m || m.role!=="admin"){setAllowed(false);return}
+    const preview = new URLSearchParams(window.location.search).get("preview") === "1";
+    const accessResponse = await fetch("/api/backoffice/access",{headers:{Authorization:"Bearer "+data.session.access_token}});
+    const accessResult = accessResponse.ok ? await accessResponse.json() : {allowed:false};
+    if(!m || (m.role!=="admin" && !(preview && accessResult.allowed))){setAllowed(false);return}
     const org=Array.isArray(m.organizations)?m.organizations[0]:m.organizations;
     setOrgId(m.org_id);setOrgName(org?.name||"");setAllowed(true);
     const r=await fetch("/api/settings/mappings?orgId="+m.org_id,{headers:{Authorization:"Bearer "+data.session.access_token}});
@@ -85,7 +88,7 @@ export default function Settings() {
   }
   if(allowed===null)return <main><section className="hero"><h2>Settings</h2><p>Checking access...</p></section></main>;
   if(!allowed)return <main><section className="card auth"><h2>Access denied</h2><p>Only the customer administrator can configure data mappings.</p></section></main>;
-  return <main><header className="topbar"><div><div className="eyebrow">FLOW MANAGER · SETTINGS</div><h1>{orgName}</h1><p>Configure how your source files map into Flow Manager.</p></div><button onClick={()=>location.href="/"}>Back to Flow Manager</button></header>
+  return <main><header className="topbar"><div><div className="eyebrow">FLOW MANAGER · SETTINGS</div><h1>{orgName}</h1><p>Configure how your source files map into Flow Manager.</p></div><button onClick={()=>location.href={new URLSearchParams(window.location.search).get("preview")==="1"?"/?preview=1&customer="+orgId:"/"}}>Back to Flow Manager</button></header>
     <section className="card"><div className="section-heading"><div><h3>Data source</h3><p>Choose the export you are configuring.</p></div></div>
       <div className="chips">{["stock","purchase_orders"].map(k=><button key={k} className={source===k?"chip selected":"chip"} onClick={()=>changeSource(k)}>{k==="stock"?"Stock data":"Purchase orders"}</button>)}</div>
     </section>
