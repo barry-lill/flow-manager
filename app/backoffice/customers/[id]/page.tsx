@@ -19,6 +19,8 @@ export default function CustomerDetail() {
   const [modules, setModules] = useState<Module[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [users, setUsers] = useState<CustomerUser[]>([]);
+  const [gukEmail, setGukEmail] = useState("");
+  const [addingGuk, setAddingGuk] = useState(false);
   const [message, setMessage] = useState("Loading customer...");
   const [saving, setSaving] = useState(false);
 
@@ -94,6 +96,29 @@ export default function CustomerDetail() {
         {users.map((user) => <tr key={user.email + user.role}><td>{user.email}</td><td>{user.role === "guk_viewer" ? "GUK view-only" : user.role}</td></tr>)}
         {users.length === 0 && <tr><td colSpan={2} className="empty">No users have access.</td></tr>}
       </tbody></table></div>
+    </section>
+    <section className="card">
+      <div className="section-heading">
+        <div><h3>GUK users</h3><p>Add GUK team members who need view-only access to this customer.</p></div>
+      </div>
+      <div className="invite-row">
+        <input type="email" placeholder="GUK email address" value={gukEmail} onChange={e => setGukEmail(e.target.value)} />
+        <button disabled={addingGuk || !gukEmail.trim()} onClick={async () => {
+          setAddingGuk(true); setMessage("Adding GUK user...");
+          const accessToken = await token();
+          const response = await fetch("/api/backoffice/customers/" + params.id + "/users", {
+            method:"POST",
+            headers:{"Content-Type":"application/json",Authorization:"Bearer "+accessToken},
+            body:JSON.stringify({email:gukEmail.trim()})
+          });
+          const result = await response.json();
+          setAddingGuk(false);
+          if (!response.ok) { setMessage(result.error || "Could not add GUK user."); return; }
+          setUsers(result.users || []);
+          setGukEmail("");
+          setMessage(result.invitationSent ? "GUK user added and invitation sent." : "GUK user added.");
+        }}>Add GUK user</button>
+      </div>
     </section>
     <section className="card">
       <h3>Data sources</h3>
