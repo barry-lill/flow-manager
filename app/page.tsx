@@ -44,6 +44,7 @@ export default function Home() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [includeZeroStock, setIncludeZeroStock] = useState(false);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [message, setMessage] = useState("Loading Flow Manager...");
   const [orgName, setOrgName] = useState("");
@@ -271,7 +272,11 @@ export default function Home() {
 
   const hasModule = (key: string) => enabledModules.includes(key);
 
-  const visibleStocks = useMemo(() => selectedGroups.length === 0 ? stocks : stocks.filter((s) => selectedGroups.includes(s.stockGroup)), [stocks, selectedGroups]);
+  const visibleStocks = useMemo(() => stocks.filter((s) => {
+    const relevant = s.targetLevel > 0 || s.quantity > 0;
+    const groupMatch = selectedGroups.length === 0 || selectedGroups.includes(s.stockGroup);
+    return (includeZeroStock || relevant) && groupMatch;
+  }), [stocks, selectedGroups, includeZeroStock]);
 
   if (!authReady) return <main><section className="hero"><h2>Flow Manager</h2><p>Connecting...</p></section></main>;
 
@@ -343,7 +348,11 @@ export default function Home() {
       </section>
 
       {hasModule("stock") && groups.length > 0 && <section className="card">
-        <div className="section-heading"><div><h3>Stock Groups</h3><p>All active products are imported. Choose what to display.</p></div><button onClick={() => setSelectedGroups([])}>Show all</button></div>
+        <div className="section-heading"><div><h3>Stock filters</h3><p>By default, show products with a target stock or actual stock. Products with both at zero are hidden.</p></div><button onClick={() => { setSelectedGroups([]); setIncludeZeroStock(false); }}>Reset filters</button></div>
+        <div className="filter-row">
+          <label className="filter-option"><input type="checkbox" checked={includeZeroStock} onChange={(e) => setIncludeZeroStock(e.target.checked)} /> Include zero stock / zero target</label>
+        </div>
+        <div className="section-heading"><div><h4>Product group</h4></div><button onClick={() => setSelectedGroups([])}>All groups</button></div>
         <div className="chips">{groups.map((group) => <button key={group} className={selectedGroups.includes(group) ? "chip selected" : "chip"} onClick={() => setSelectedGroups((current) => current.includes(group) ? current.filter((g) => g !== group) : [...current, group])}>{group || "(No group)"}</button>)}</div>
       </section>}
 
@@ -356,7 +365,12 @@ export default function Home() {
       {hasModule("stock") && <section className="card">
         <div className="section-heading"><div><h3>Stock</h3><p>Current Sage 50 stock position.</p></div></div>
         <div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Buffer</th></tr></thead><tbody>
-          {visibleStocks.slice(0, 100).map((stock) => { const pct = stock.targetLevel > 0 ? stock.quantity / stock.targetLevel : 0; const status = pct > 1 ? "blue" : pct >= .66 ? "green" : pct >= .33 ? "yellow" : pct > 0 ? "red" : "black"; return <tr key={stock.stockCode}><td>{stock.stockCode}</td><td>{stock.description}</td><td>{stock.stockGroup}</td><td>{stock.quantity}</td><td>{stock.targetLevel}</td><td><span className={`status ${status}`}>{status}</span></td></tr>; })}
+          {visibleStocks.slice(0, 100).map((stock) => {
+            const managed = stock.targetLevel > 0;
+            const pct = managed ? stock.quantity / stock.targetLevel : 0;
+            const status = !managed ? "unmanaged" : pct > 1 ? "blue" : pct >= .66 ? "green" : pct >= .33 ? "yellow" : pct > 0 ? "red" : "black";
+            return <tr key={stock.stockCode}><td>{stock.stockCode}</td><td>{stock.description}</td><td>{stock.stockGroup}</td><td>{stock.quantity}</td><td>{stock.targetLevel}</td><td><span className={`status ${status}`}>{managed ? status : "no target"}</span></td></tr>;
+          })}
           {visibleStocks.length === 0 && <tr><td colSpan={6} className="empty">No stock data yet.</td></tr>}
         </tbody></table></div>{visibleStocks.length > 100 && <p className="footnote">Showing the first 100 rows for now.</p>}
       </section>}
