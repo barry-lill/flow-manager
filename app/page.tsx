@@ -150,13 +150,29 @@ export default function Home() {
   }
 
   async function loadData(orgId: string) {
-    const [{ data: stockData, error: stockError }, { data: orderData, error: orderError }] = await Promise.all([
-      supabase.from("stock").select("stock_code,description,quantity,target_level,stock_group").eq("org_id", orgId).order("stock_code"),
-      supabase.from("purchase_orders").select("po_number,stock_code,description,supplier,order_date,due_date,quantity_outstanding").eq("org_id", orgId).order("due_date"),
-    ]);
+    const stockRows: any[] = [];
+    let stockError: any = null;
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from("stock")
+        .select("stock_code,description,quantity,target_level,stock_group")
+        .eq("org_id", orgId)
+        .order("stock_code")
+        .range(from, from + 999);
+      if (error) { stockError = error; break; }
+      stockRows.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+
+    const { data: orderData, error: orderError } = await supabase
+      .from("purchase_orders")
+      .select("po_number,stock_code,description,supplier,order_date,due_date,quantity_outstanding")
+      .eq("org_id", orgId)
+      .order("due_date");
+
     if (stockError || orderError) { setMessage(stockError?.message || orderError?.message || "Could not load data."); return; }
 
-    const mappedStocks = (stockData ?? []).map((s) => ({ stockCode: s.stock_code, description: s.description, quantity: Number(s.quantity), targetLevel: Number(s.target_level), stockGroup: s.stock_group }));
+    const mappedStocks = stockRows.map((s) => ({ stockCode: s.stock_code, description: s.description, quantity: Number(s.quantity), targetLevel: Number(s.target_level), stockGroup: s.stock_group }));
     const mappedOrders = (orderData ?? []).map((p) => ({ poNumber: p.po_number, stockCode: p.stock_code, description: p.description, supplier: p.supplier, orderDate: p.order_date ?? "", dueDate: p.due_date ?? "", quantityOutstanding: Number(p.quantity_outstanding) }));
     setStocks(mappedStocks);
     setOrders(mappedOrders);
