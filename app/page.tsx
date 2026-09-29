@@ -215,9 +215,14 @@ export default function Home() {
     }
     setMessage("Importing products...");
     const data = await file.arrayBuffer();
+    setMessage(`Reading ${file.name} (${Math.round(data.byteLength / 1024)} KB)...`);
     const workbook = XLSX.read(data, { cellDates: true });
+    setMessage(`Reading ${file.name} — workbook loaded...`);
     const settings = mappingSettings.stock || { has_headers:true, header_row:1, data_start_row:2 };
-    const rows = readImportRows(workbook.Sheets[workbook.SheetNames[0]], settings);
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!firstSheet) throw new Error("The workbook has no readable first worksheet.");
+    const rows = readImportRows(firstSheet, settings);
+    setMessage(`Reading ${file.name} — ${rows.length.toLocaleString()} rows found. Preparing import...`);
     const map = mappings.stock;
     const imported: Stock[] = rows
       .filter((row) => map.inactive_flag ? toNumber(row[map.inactive_flag]) !== 1 : true)
