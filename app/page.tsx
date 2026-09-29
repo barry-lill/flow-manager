@@ -389,7 +389,7 @@ export default function Home() {
 
       {hasModule("stock") && <section className="card">
         <div className="section-heading"><div><h3>Stock</h3><p>Current Sage 50 stock position.</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Stock % of target</th></tr></thead><tbody>
+        <div className="table-wrap"><table className="stock-table"><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Stock % of target</th></tr></thead><tbody>
           {visibleStocks.slice(0, visibleRowCount).map((stock) => {
             const pct = stock.targetLevel > 0 ? (stock.quantity / stock.targetLevel) * 100 : stock.quantity > 0 ? Infinity : 0;
             const status = pct === Infinity ? "blue" : pct > 100 ? "blue" : pct >= 66 ? "green" : pct >= 33 ? "orange" : pct > 0 ? "red" : "black";
