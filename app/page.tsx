@@ -201,45 +201,30 @@ export default function Home() {
   }
 
   async function importProducts(file: File) {
-    setMessage(`Reading ${file.name}...`);
-    try {
     if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
     if (!mappingsReady || !mappings.stock) {
       setMessage("Stock import is not configured. An administrator must complete Settings → Stock data first.");
       return;
     }
-    const required = ["stock_code", "description", "quantity", "target_level"];
-    if (required.some((key) => !mappings.stock[key])) {
-      setMessage("Stock mapping is incomplete. An administrator must map all required fields in Settings.");
-      return;
-    }
-    setMessage("Importing products...");
-    const data = await file.arrayBuffer();
-    setMessage(`Reading ${file.name} (${Math.round(data.byteLength / 1024)} KB)...`);
-    const workbook = XLSX.read(data, { cellDates: true, dense: true });
-    setMessage(`Reading ${file.name} — workbook loaded...`);
-    const settings = mappingSettings.stock || { has_headers:true, header_row:1, data_start_row:2 };
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!firstSheet) throw new Error("The workbook has no readable first worksheet.");
-    const rows = readImportRows(firstSheet, settings);
-    setMessage(`Reading ${file.name} — ${rows.length.toLocaleString()} rows found. Preparing import...`);
-    const map = mappings.stock;
-    const imported: Stock[] = rows
-      .filter((row) => map.inactive_flag ? toNumber(row[map.inactive_flag]) !== 1 : true)
-      .map((row) => ({
-        stockCode: String(row[map.stock_code] ?? "").trim(),
-        description: String(row[map.description] ?? ""),
-        quantity: toNumber(row[map.quantity]),
-        targetLevel: toNumber(row[map.target_level]),
-        stockGroup: map.stock_group ? String(row[map.stock_group] ?? "") : "",
-      })).filter((s) => s.stockCode);
+    setMessage(`Uploading ${file.name}...`);
+    try {
+      const data = await file.arrayBuffer();
+      const form = new FormData();
+      form.append("file", new Blob([data]), file.name);
+      form.append("orgId", membership.orgId);
+      const auth = await supabase.auth.getSession();
+      const token = auth.data.session?.access_token;
+      if (!token) throw new Error("Your session has expired. Please sign in again.");
 
-    const { error: deleteError } = await supabase.from("stock").delete().eq("org_id", membership.orgId);
-    if (deleteError) { setMessage(`Could not replace stock data: ${deleteError.message}`); return; }
-    const { error } = await supabase.from("stock").insert(imported.map((s) => ({ org_id: membership.orgId, stock_code: s.stockCode, description: s.description, quantity: s.quantity, target_level: s.targetLevel, stock_group: s.stockGroup })));
-    if (error) { setMessage(`Could not save stock data: ${error.message}`); return; }
-    await loadData(membership.orgId);
-    setMessage(`Imported and saved ${imported.length.toLocaleString()} active products from ${file.name}.`);
+      const response = await fetch("/api/import/stock", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Stock import failed.");
+      await loadData(membership.orgId);
+      setMessage(result.message || `Imported and saved ${result.imported ?? 0} active products from ${file.name}.`);
     } catch (error) {
       setMessage(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
     }
