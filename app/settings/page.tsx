@@ -29,7 +29,8 @@ const definitions: Record<string, Mapping[]> = {
 export default function Settings() {
   const [orgId,setOrgId]=useState(""); const [orgName,setOrgName]=useState("");
   const [source,setSource]=useState("stock"); const [mapping,setMapping]=useState<Mapping[]>(definitions.stock);
-  const [columns,setColumns]=useState<string[]>([]); const [message,setMessage]=useState(""); const [allowed,setAllowed]=useState<boolean|null>(null); const [savedMappings,setSavedMappings]=useState<any[]>([]);\n  const [hasHeaders,setHasHeaders]=useState(true); const [headerRow,setHeaderRow]=useState(1); const [dataStartRow,setDataStartRow]=useState(2); const [sourceSettings,setSourceSettings]=useState<any[]>([]);
+  const [columns,setColumns]=useState<string[]>([]); const [message,setMessage]=useState(""); const [allowed,setAllowed]=useState<boolean|null>(null); const [savedMappings,setSavedMappings]=useState<any[]>([]);
+  const [hasHeaders,setHasHeaders]=useState(true); const [headerRow,setHeaderRow]=useState(1); const [dataStartRow,setDataStartRow]=useState(2); const [sourceSettings,setSourceSettings]=useState<any[]>([]);
 
   useEffect(()=>{supabase.auth.getSession().then(async({data})=>{
     if(!data.session){setAllowed(false);return}
@@ -44,7 +45,11 @@ export default function Settings() {
     if(r.ok){const x=await r.json(); setSavedMappings(x.mappings||[]); setSourceSettings(x.sources||[]); applySourceSettings(x.sources||[],"stock"); applyMappings("stock",x.mappings||[]);}
   })},[]);
 
-  function applySourceSettings(sources:any[], key:string) {\n    const s=sources.find((x:any)=>x.source_key===key);\n    setHasHeaders(s?.has_headers ?? true); setHeaderRow(Number(s?.header_row ?? 1)); setDataStartRow(Number(s?.data_start_row ?? 2));\n  }\n  function applyMappings(key:string, saved:any[]) {
+  function applySourceSettings(sources:any[], key:string) {
+    const s=sources.find((x:any)=>x.source_key===key);
+    setHasHeaders(s?.has_headers ?? true); setHeaderRow(Number(s?.header_row ?? 1)); setDataStartRow(Number(s?.data_start_row ?? 2));
+  }
+  function applyMappings(key:string, saved:any[]) {
     setMapping(definitions[key].map(d=>({...d,sourceColumn:saved.find((x:any)=>x.source_key===key&&x.field_key===d.fieldKey)?.source_column||""})));
   }
   function changeSource(key:string){setSource(key);applyMappings(key,savedMappings);setColumns([]); applySourceSettings(sourceSettings,key);}
@@ -55,15 +60,19 @@ export default function Settings() {
         const workbook=XLSX.read(reader.result,{type:"array",cellDates:true});
         const sheet=workbook.Sheets[workbook.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:"",range:0});
-        const cols=(rows[0] as unknown[] || []).map(v=>String(v).trim()).filter(Boolean);
-        setColumns(cols);
-        setMapping(definitions[source].map(d=>({...d,sourceColumn:bestMatch(d,cols)||d.sourceColumn})));
+        const headerIndex=Math.max(0,headerRow-1);
+        const firstRow=(rows[headerIndex] as unknown[] || []);
+        const width=Math.max(...rows.map((row:any[])=>row.length),0);
+        const cols=hasHeaders ? firstRow.map(v=>String(v).trim()) : Array.from({length:width},(_,i)=>columnLetter(i));
+        setColumns(cols.filter(Boolean));
+        setMapping(definitions[source].map(d=>({...d,sourceColumn:bestMatch(d,cols.filter(Boolean))||d.sourceColumn})));
       } catch { setMessage("Could not read that sample file."); }
     };
     reader.readAsArrayBuffer(file);
   }
 
-  function columnLetter(index:number){let n=index+1,s="";while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}\n  function bestMatch(def:Mapping, cols:string[]) {
+  function columnLetter(index:number){let n=index+1,s="";while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+  function bestMatch(def:Mapping, cols:string[]) {
     const aliases:Record<string,string[]>={
       stock_code:["stock code","account reference","productrecord.accountreference","productaccountreference"],
       description:["description","productrecord.description","purchaseorderitem.description"],
@@ -95,7 +104,10 @@ export default function Settings() {
     <section className="card"><div className="section-heading"><div><h3>Data source</h3><p>Choose the export you are configuring.</p></div></div>
       <div className="chips">{["stock","purchase_orders"].map(k=><button key={k} className={source===k?"chip selected":"chip"} onClick={()=>changeSource(k)}>{k==="stock"?"Stock data":"Purchase orders"}</button>)}</div>
     </section>
-    <section className="card"><div className="section-heading"><div><h3>File layout</h3><p>Tell Flow Manager where the headings and data begin in the export.</p></div></div>\n      <div className="invite-row"><label><input type="checkbox" checked={hasHeaders} onChange={e=>{setHasHeaders(e.target.checked);setColumns([]);}} /> File has column headings</label><label>Heading row <input type="number" min="1" value={headerRow} disabled={!hasHeaders} onChange={e=>setHeaderRow(Math.max(1,Number(e.target.value)||1))}/></label><label>Data starts on row <input type="number" min="1" value={dataStartRow} onChange={e=>setDataStartRow(Math.max(1,Number(e.target.value)||1))}/></label></div>\n    </section>\n    <section className="card"><div className="section-heading"><div><h3>Field mapping</h3><p>Upload a sample CSV to see its columns, then confirm the mapping.</p></div></div>
+    <section className="card"><div className="section-heading"><div><h3>File layout</h3><p>Tell Flow Manager where the headings and data begin in the export.</p></div></div>
+      <div className="invite-row"><label><input type="checkbox" checked={hasHeaders} onChange={e=>{setHasHeaders(e.target.checked);setColumns([]);}} /> File has column headings</label><label>Heading row <input type="number" min="1" value={headerRow} disabled={!hasHeaders} onChange={e=>setHeaderRow(Math.max(1,Number(e.target.value)||1))}/></label><label>Data starts on row <input type="number" min="1" value={dataStartRow} onChange={e=>setDataStartRow(Math.max(1,Number(e.target.value)||1))}/></label></div>
+    </section>
+    <section className="card"><div className="section-heading"><div><h3>Field mapping</h3><p>Upload a sample CSV to see its columns, then confirm the mapping.</p></div></div>
       <label className="upload secondary"><span>Upload sample file</span><input type="file" accept=".csv,.txt,.xlsx,.xls" onChange={e=>e.target.files?.[0]&&sample(e.target.files[0])}/></label>
       {columns.length>0&&<p className="footnote">Detected {columns.length} columns from the sample.</p>}
       <div className="mapping-table"><div className="mapping-head"><span>Flow Manager field</span><span>Source column</span><span>Required</span></div>
