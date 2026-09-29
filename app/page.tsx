@@ -216,7 +216,7 @@ export default function Home() {
     setMessage("Importing products...");
     const data = await file.arrayBuffer();
     setMessage(`Reading ${file.name} (${Math.round(data.byteLength / 1024)} KB)...`);
-    const workbook = XLSX.read(data, { cellDates: true });
+    const workbook = XLSX.read(data, { cellDates: true, dense: true });
     setMessage(`Reading ${file.name} — workbook loaded...`);
     const settings = mappingSettings.stock || { has_headers:true, header_row:1, data_start_row:2 };
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
