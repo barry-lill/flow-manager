@@ -426,7 +426,7 @@ export default function Home() {
   useEffect(() => {
     if (!membershipReady || scrollRestored.current || (!stocks.length && !orders.length)) return;
     const customer = new URLSearchParams(window.location.search).get("customer") || "current";
-    const saved = sessionStorage.getItem(\`flow-manager-scroll:\${customer}\`);
+    const saved = sessionStorage.getItem(`flow-manager-scroll:${customer}`);
     if (saved === null) {
       scrollRestored.current = true;
       return;
