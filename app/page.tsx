@@ -485,12 +485,7 @@ export default function Home() {
         </div>}
       </section>
 
-      {hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} canEdit={membership.role === "admin" || membership.role === "manager" || membership.role === "guk_admin"} onWorkflowTypeChange={async (poNumber, stockCode, workflowType) => {
-        if (!membership) return;
-        const { error } = await supabase.from("purchase_orders").update({ workflow_type: workflowType }).eq("org_id", membership.orgId).eq("po_number", poNumber).eq("stock_code", stockCode);
-        if (error) { setMessage("Could not update PO type: " + error.message); return; }
-        setOrders(current => current.map(order => order.poNumber === poNumber && order.stockCode === stockCode ? { ...order, workflowType } : order));
-      }} />}
+      {hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} />}
 
       {hasModule("stock") && groups.length > 0 && <section className="card">
         <div className="section-heading"><div><h3>Stock filters</h3><p>Showing products with a target stock or actual stock. Products with both at zero are hidden.</p></div><button onClick={() => setSelectedGroups([])}>All groups</button></div>
