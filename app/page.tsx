@@ -18,7 +18,7 @@ function toNumber(value: unknown) {
   const n = Number(String(value ?? "").replace(/,/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
-function parseDate(value: unknown) {
+function columnLetter(index:number){let n=index+1,s="";while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}\nfunction readImportRows(sheet:XLSX.WorkSheet, settings:any):Record<string,unknown>[] {\n  const matrix=XLSX.utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:"",range:0});\n  const start=Math.max(1,Number(settings.data_start_row||2))-1;\n  const headerIndex=Math.max(0,Number(settings.header_row||1))-1;\n  const width=Math.max(...matrix.map((r:any[])=>r.length),0);\n  const headers=settings.has_headers===false ? Array.from({length:width},(_,i)=>columnLetter(i)) : ((matrix[headerIndex] as unknown[])||[]).map(v=>String(v).trim());\n  return matrix.slice(start).map((row:any[])=>Object.fromEntries(headers.map((h:string,i:number)=>[h,row[i] ?? ""])));\n}\nfunction parseDate(value: unknown) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value ?? "").slice(0, 10);
 }
@@ -195,7 +195,7 @@ export default function Home() {
     setMessage("Importing products...");
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { cellDates: true });
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+    const settings = mappingSettings.stock || { has_headers:true, header_row:1, data_start_row:2 };\n    const rows = readImportRows(workbook.Sheets[workbook.SheetNames[0]], settings);
     const map = mappings.stock;
     const imported: Stock[] = rows
       .filter((row) => map.inactive_flag ? toNumber(row[map.inactive_flag]) !== 1 : true)
@@ -229,7 +229,7 @@ export default function Home() {
     setMessage("Importing purchase orders...");
     const data = await file.arrayBuffer();
     const workbook = XLSX.read(data, { cellDates: true });
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+    const settings = mappingSettings.purchase_orders || { has_headers:true, header_row:1, data_start_row:2 };\n    const rows = readImportRows(workbook.Sheets[workbook.SheetNames[0]], settings);
     const map = mappings.purchase_orders;
     const imported: PurchaseOrder[] = rows.map((row) => {
       const ordered = toNumber(row[map.quantity]);
