@@ -275,6 +275,12 @@ export default function Home() {
 
   useEffect(() => { setVisibleRowCount(100); }, [stocks]);
 
+  const visibleStocks = useMemo(() => [...stocks].sort((a, b) => {
+    const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
+    const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
+    return aPct === bPct ? a.stockCode.localeCompare(b.stockCode) : aPct - bPct;
+  }), [stocks]);
+
   useEffect(() => {
     const onScroll = () => {
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
@@ -284,12 +290,6 @@ export default function Home() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, [visibleStocks.length]);
-
-  const visibleStocks = useMemo(() => [...stocks].sort((a, b) => {
-    const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
-    const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
-    return aPct === bPct ? a.stockCode.localeCompare(b.stockCode) : aPct - bPct;
-  }), [stocks]);
 
   if (!authReady) return <main><section className="hero"><h2>Flow Manager</h2><p>Connecting...</p></section></main>;
 
