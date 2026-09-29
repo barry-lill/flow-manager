@@ -43,7 +43,7 @@ th { font-size:12px; color:#697586; text-transform:uppercase; letter-spacing:.05
 .stock-percentage.blue { background:#00B0F0; color:#000; }
 .stock-percentage.green { background:#00B050; color:#000; }
 .stock-percentage.orange { background:#FFC000; color:#000; }
-.stock-percentage.red { background:#FF0000; color:#fff; }
+.stock-percentage.red { background:#FF0000; color:#000; }
 .stock-percentage.black { background:#000; color:#fff; }
 .empty { padding:40px 10px; text-align:center; color:#697586; }
 .footnote { font-size:12px; }
@@ -65,3 +65,23 @@ button:disabled { opacity:.55; cursor:default; }
 .mapping-head { background:#f5f6f8; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#697586; font-weight:700; }
 .mapping-row { border-top:1px solid #edf0f2; font-size:14px; }
 .mapping-row select { margin-top:0; }
+
+.po-filter-buttons { display:flex; gap:8px; }
+.po-suppliers { margin-bottom:16px; }
+.po-table { table-layout:fixed; }
+.po-table th:nth-child(1), .po-table td:nth-child(1) { width:8%; }
+.po-table th:nth-child(2), .po-table td:nth-child(2) { width:10%; }
+.po-table th:nth-child(3), .po-table td:nth-child(3) { width:18%; white-space:normal; overflow-wrap:anywhere; }
+.po-table th:nth-child(4), .po-table td:nth-child(4) { width:15%; white-space:normal; overflow-wrap:anywhere; }
+.po-table th:nth-child(5), .po-table td:nth-child(5) { width:8%; }
+.po-table th:nth-child(6), .po-table td:nth-child(6) { width:10%; }
+.po-table th:nth-child(7), .po-table td:nth-child(7) { width:10%; }
+.po-table th:nth-child(8), .po-table td:nth-child(8) { width:9%; text-align:right; }
+.po-table th:nth-child(9), .po-table td:nth-child(9) { width:12%; text-align:center; }
+.po-type-select { margin:0; padding:6px 8px; }
+.po-status { display:block; padding:9px 8px; font-weight:700; text-align:center; }
+.po-status.blue { background:#00B0F0; color:#000; }
+.po-status.green { background:#00B050; color:#000; }
+.po-status.orange { background:#FFC000; color:#000; }
+.po-status.red { background:#FF0000; color:#000; }
+.po-status.black { background:#000; color:#fff; }
