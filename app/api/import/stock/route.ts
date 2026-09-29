@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (membershipError) throw new Error(membershipError.message);
-    if (!membership || !["admin", "manager"].includes(membership.role)) {
+    if (!membership || !["admin", "manager", "guk_admin"].includes(membership.role)) {
       return NextResponse.json({ error: "You do not have permission to import stock data." }, { status: 403 });
     }
 
