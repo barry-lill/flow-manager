@@ -360,7 +360,7 @@ export default function Home() {
     const settings = mappingSettings.purchase_orders || { has_headers:true, header_row:1, data_start_row:2 };
     const rows = readImportRows(workbook.Sheets[workbook.SheetNames[0]], settings);
     const map = mappings.purchase_orders;
-    const imported: PurchaseOrder[] = rows.map((row) => {
+    const imported: PurchaseOrder[] = rows.map((row): PurchaseOrder => {
       const ordered = toNumber(row[map.quantity]);
       const delivered = map.quantity_delivered ? toNumber(row[map.quantity_delivered]) : 0;
       return {
