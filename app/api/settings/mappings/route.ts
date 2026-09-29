@@ -60,6 +60,27 @@ export async function POST(request: NextRequest) {
     })));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  await admin.from("data_sources").upsert({ org_id: orgId, source_key: sourceKey, name: sourceKey === "stock" ? "Stock data" : "Purchase orders", configured: true, has_headers: hasHeaders, header_row: headerRow, data_start_row: dataStartRow }, { onConflict:"org_id,source_key" });
+  const sourcePayload = {
+    org_id: orgId,
+    source_key: sourceKey,
+    name: sourceKey === "stock" ? "Stock data" : "Purchase orders",
+    configured: true,
+    has_headers: hasHeaders,
+    header_row: headerRow,
+    data_start_row: dataStartRow,
+  };
+  const { data: existingSource, error: sourceLookupError } = await admin
+    .from("data_sources")
+    .select("org_id,source_key")
+    .eq("org_id", orgId)
+    .eq("source_key", sourceKey)
+    .maybeSingle();
+  if (sourceLookupError) return NextResponse.json({ error: sourceLookupError.message }, { status: 500 });
+
+  const { error: sourceError } = existingSource
+    ? await admin.from("data_sources").update(sourcePayload).eq("org_id", orgId).eq("source_key", sourceKey)
+    : await admin.from("data_sources").insert(sourcePayload);
+  if (sourceError) return NextResponse.json({ error: sourceError.message }, { status: 500 });
+
   return NextResponse.json({ ok:true });
 }
