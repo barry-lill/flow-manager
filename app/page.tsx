@@ -354,34 +354,33 @@ export default function Home() {
       setMessage("Purchase order mapping is incomplete. An administrator must map all required fields in Settings.");
       return;
     }
-    setMessage("Importing purchase orders...");
-    const data = await file.arrayBuffer();
-    const workbook = XLSX.read(data, { cellDates: true });
-    const settings = mappingSettings.purchase_orders || { has_headers:true, header_row:1, data_start_row:2 };
-    const rows = readImportRows(workbook.Sheets[workbook.SheetNames[0]], settings);
-    const map = mappings.purchase_orders;
-    const imported: PurchaseOrder[] = rows.map((row): PurchaseOrder => {
-      const ordered = toNumber(row[map.quantity]);
-      const delivered = map.quantity_delivered ? toNumber(row[map.quantity_delivered]) : 0;
-      return {
-        poNumber: String(row[map.po_number] ?? "").trim(),
-        stockCode: String(row[map.stock_code] ?? "").trim(),
-        description: map.description ? String(row[map.description] ?? "") : "",
-        supplier: map.supplier ? String(row[map.supplier] ?? "") : "",
-        orderDate: map.order_date ? parseDate(row[map.order_date]) : "",
-        dueDate: parseDate(row[map.due_date]),
-        quantityOutstanding: Math.max(0, ordered - delivered),
-        workflowType: "PTA",
-      };
-    }).filter((p) => p.poNumber && p.stockCode && p.quantityOutstanding > 0);
 
-    const { error: deleteError } = await supabase.from("purchase_orders").delete().eq("org_id", membership.orgId);
-    if (deleteError) { setMessage(`Could not replace PO data: ${deleteError.message}`); return; }
-    const { error } = await supabase.from("purchase_orders").insert(imported.map((p) => ({ org_id: membership.orgId, po_number: p.poNumber, stock_code: p.stockCode, description: p.description, supplier: p.supplier, order_date: p.orderDate || null, due_date: p.dueDate || null, quantity_outstanding: p.quantityOutstanding, workflow_type: p.workflowType })));
-    if (error) { setMessage(`Could not save PO data: ${error.message}`); return; }
-    await loadData(membership.orgId);
-    setMessage(`Imported and saved ${imported.length.toLocaleString()} open/part-delivered PO lines from ${file.name}.`);
+    setMessage(`Uploading ${file.name}...`);
+    try {
+      const data = await file.arrayBuffer();
+      const form = new FormData();
+      form.append("file", new Blob([data]), file.name);
+      form.append("orgId", membership.orgId);
+
+      const auth = await supabase.auth.getSession();
+      const token = auth.data.session?.access_token;
+      if (!token) throw new Error("Your session has expired. Please sign in again.");
+
+      const response = await fetch("/api/import/purchase-orders", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Purchase order import failed.");
+
+      await loadData(membership.orgId);
+      setMessage(result.message || `Imported and saved ${result.imported ?? 0} open/part-delivered PO lines from ${file.name}.`);
+    } catch (error) {
+      setMessage(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
+
 
   const hasModule = (key: string) => enabledModules.includes(key);
 
