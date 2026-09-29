@@ -66,7 +66,8 @@ export default function Home() {
     });
     if (response.ok) {
       const result = await response.json();
-      if (result.allowed) {
+      const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
+      if (result.allowed && !previewMode) {
         window.location.href = "/backoffice";
         return;
       }
