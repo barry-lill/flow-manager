@@ -52,14 +52,20 @@ export async function POST(request: NextRequest) {
   if (membership?.role !== "admin" && !isGukAdmin(user.email)) return NextResponse.json({ error: "Only the customer administrator can change field mappings." }, { status: 403 });
 
   const clean = mappings.filter((m: any) => typeof m.fieldKey === "string" && typeof m.sourceColumn === "string");
-  const { error: deleteError } = await admin.from("data_mappings").delete().eq("org_id", orgId).eq("source_key", sourceKey);
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
-  if (clean.length) {
-    const { error } = await admin.from("data_mappings").insert(clean.map((m: any) => ({
-      org_id: orgId, source_key: sourceKey, field_key: m.fieldKey, source_column: m.sourceColumn, required: !!m.required
-    })));
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (!clean.length) return NextResponse.json({ error: "No field mappings were supplied." }, { status: 400 });
+
+  const { error: mappingError } = await admin.from("data_mappings").upsert(
+    clean.map((m: any) => ({
+      org_id: orgId,
+      source_key: sourceKey,
+      field_key: m.fieldKey,
+      source_column: m.sourceColumn,
+      required: !!m.required,
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: "org_id,source_key,field_key" }
+  );
+  if (mappingError) return NextResponse.json({ error: mappingError.message }, { status: 500 });
   const sourcePayload = {
     org_id: orgId,
     source_key: sourceKey,
