@@ -134,7 +134,16 @@ export default function Home() {
       if (!grouped[row.source_key]) grouped[row.source_key] = {};
       grouped[row.source_key][row.field_key] = row.source_column;
     }
+    const settings: Record<string, any> = {};
+    for (const row of result.sources ?? []) {
+      settings[row.source_key] = {
+        has_headers: row.has_headers,
+        header_row: row.header_row,
+        data_start_row: row.data_start_row,
+      };
+    }
     setMappings(grouped);
+    setMappingSettings(settings);
     setMappingsReady(true);
   }
 
