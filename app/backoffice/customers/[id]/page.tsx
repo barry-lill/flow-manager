@@ -20,6 +20,7 @@ export default function CustomerDetail() {
   const [selected, setSelected] = useState<string[]>([]);
   const [users, setUsers] = useState<CustomerUser[]>([]);
   const [gukEmail, setGukEmail] = useState("");
+  const [gukRole, setGukRole] = useState<"guk_viewer" | "guk_admin">("guk_viewer");
   const [addingGuk, setAddingGuk] = useState(false);
   const [message, setMessage] = useState("Loading customer...");
   const [saving, setSaving] = useState(false);
@@ -93,23 +94,24 @@ export default function CustomerDetail() {
         <a href={"/?preview=1&customer=" + customer.id} className="primary-action">Open customer view</a>
       </div>
       <div className="table-wrap"><table><thead><tr><th>Email address</th><th>Access</th></tr></thead><tbody>
-        {users.map((user) => <tr key={user.email + user.role}><td>{user.email}</td><td>{user.role === "guk_viewer" ? "GUK view-only" : user.role}</td></tr>)}
+        {users.map((user) => <tr key={user.email + user.role}><td>{user.email}</td><td>{user.role === "guk_viewer" ? "GUK view-only" : user.role === "guk_admin" ? "GUK admin" : user.role}</td></tr>)}
         {users.length === 0 && <tr><td colSpan={2} className="empty">No users have access.</td></tr>}
       </tbody></table></div>
     </section>
     <section className="card">
       <div className="section-heading">
-        <div><h3>GUK users</h3><p>Add GUK team members who need view-only access to this customer.</p></div>
+        <div><h3>GUK users</h3><p>Add GUK team members and choose whether they can administer this customer or view only.</p></div>
       </div>
       <div className="invite-row">
         <input type="email" placeholder="GUK email address" value={gukEmail} onChange={e => setGukEmail(e.target.value)} />
+        <select value={gukRole} onChange={e => setGukRole(e.target.value as "guk_viewer" | "guk_admin")}><option value="guk_viewer">GUK view-only</option><option value="guk_admin">GUK admin</option></select>
         <button disabled={addingGuk || !gukEmail.trim()} onClick={async () => {
           setAddingGuk(true); setMessage("Adding GUK user...");
           const accessToken = await token();
           const response = await fetch("/api/backoffice/customers/" + params.id + "/users", {
             method:"POST",
             headers:{"Content-Type":"application/json",Authorization:"Bearer "+accessToken},
-            body:JSON.stringify({email:gukEmail.trim()})
+            body:JSON.stringify({email:gukEmail.trim(),role:gukRole})
           });
           const result = await response.json();
           setAddingGuk(false);
