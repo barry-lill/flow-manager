@@ -20,6 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const {id}=await params;
   const body=await request.json();
   const email=String(body.email||"").trim().toLowerCase();
+  const role=body.role === "guk_admin" ? "guk_admin" : "guk_viewer";
   if(!email) return NextResponse.json({error:"Email address is required."},{status:400});
 
   const admin=createClient(url,secretKey,{auth:{autoRefreshToken:false,persistSession:false,detectSessionInUrl:false}});
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const {error}=await admin.from("memberships").upsert(
-    {org_id:id,user_id:userId,role:"guk_viewer"},
+    {org_id:id,user_id:userId,role},
     {onConflict:"org_id,user_id"}
   );
   if(error) return NextResponse.json({error:error.message},{status:500});
