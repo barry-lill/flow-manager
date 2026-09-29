@@ -3,7 +3,7 @@
 
 alter table public.memberships drop constraint if exists memberships_role_check;
 alter table public.memberships add constraint memberships_role_check
-  check (role in ('admin','manager','viewer','guk_viewer'));
+  check (role in ('admin','manager','viewer','guk_viewer','guk_admin'));
 
 create table if not exists public.flow_modules (
   key text primary key,
