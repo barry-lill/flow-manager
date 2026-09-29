@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (!membership && !isGukAdmin(user.email)) return NextResponse.json({ error: "You do not have access to this organisation." }, { status: 403 });
 
   const [{ data: sources, error: sourceError }, { data: mappings, error: mappingError }] = await Promise.all([
-    admin.from("data_sources").select("source_key,name,description,configured").eq("org_id", orgId),
+    admin.from("data_sources").select("source_key,name,description,configured,has_headers,header_row,data_start_row").eq("org_id", orgId),
     admin.from("data_mappings").select("source_key,field_key,source_column,required").eq("org_id", orgId),
   ]);
   if (sourceError || mappingError) return NextResponse.json({ error: sourceError?.message || mappingError?.message }, { status: 500 });
@@ -42,6 +42,9 @@ export async function POST(request: NextRequest) {
   const orgId = String(body.orgId || "");
   const sourceKey = String(body.sourceKey || "");
   const mappings = Array.isArray(body.mappings) ? body.mappings : [];
+  const hasHeaders = body.hasHeaders !== false;
+  const headerRow = Math.max(1, Number(body.headerRow || 1));
+  const dataStartRow = Math.max(1, Number(body.dataStartRow || 2));
   if (!orgId || !sourceKey) return NextResponse.json({ error: "Organisation and source are required." }, { status: 400 });
 
   const admin = createClient(url!, process.env.SUPABASE_SECRET_KEY!, { auth: { autoRefreshToken:false, persistSession:false } });
@@ -56,6 +59,6 @@ export async function POST(request: NextRequest) {
     })));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  await admin.from("data_sources").upsert({ org_id: orgId, source_key: sourceKey, name: sourceKey === "stock" ? "Stock data" : "Purchase orders", configured: true }, { onConflict:"org_id,source_key" });
+  await admin.from("data_sources").upsert({ org_id: orgId, source_key: sourceKey, name: sourceKey === "stock" ? "Stock data" : "Purchase orders", configured: true, has_headers: hasHeaders, header_row: headerRow, data_start_row: dataStartRow }, { onConflict:"org_id,source_key" });
   return NextResponse.json({ ok:true });
 }
