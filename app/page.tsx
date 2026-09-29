@@ -272,11 +272,17 @@ export default function Home() {
 
   const hasModule = (key: string) => enabledModules.includes(key);
 
-  const visibleStocks = useMemo(() => stocks.filter((s) => {
-    const relevant = s.targetLevel > 0 || s.quantity > 0;
-    const groupMatch = selectedGroups.length === 0 || selectedGroups.includes(s.stockGroup);
-    return (includeZeroStock || relevant) && groupMatch;
-  }), [stocks, selectedGroups, includeZeroStock]);
+  const visibleStocks = useMemo(() => stocks
+    .filter((s) => {
+      const relevant = s.targetLevel > 0 || s.quantity > 0;
+      const groupMatch = selectedGroups.length === 0 || selectedGroups.includes(s.stockGroup);
+      return (includeZeroStock || relevant) && groupMatch;
+    })
+    .sort((a, b) => {
+      const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
+      const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
+      return bPct === aPct ? a.stockCode.localeCompare(b.stockCode) : bPct - aPct;
+    }), [stocks, selectedGroups, includeZeroStock]);
 
   if (!authReady) return <main><section className="hero"><h2>Flow Manager</h2><p>Connecting...</p></section></main>;
 
@@ -364,12 +370,12 @@ export default function Home() {
 
       {hasModule("stock") && <section className="card">
         <div className="section-heading"><div><h3>Stock</h3><p>Current Sage 50 stock position.</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Buffer</th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>Stock code</th><th>Description</th><th>Stock group</th><th>Stock</th><th>Target</th><th>Stock % of target</th></tr></thead><tbody>
           {visibleStocks.slice(0, 100).map((stock) => {
-            const managed = stock.targetLevel > 0;
-            const pct = managed ? stock.quantity / stock.targetLevel : 0;
-            const status = !managed ? "unmanaged" : pct > 1 ? "blue" : pct >= .66 ? "green" : pct >= .33 ? "yellow" : pct > 0 ? "red" : "black";
-            return <tr key={stock.stockCode}><td>{stock.stockCode}</td><td>{stock.description}</td><td>{stock.stockGroup}</td><td>{stock.quantity}</td><td>{stock.targetLevel}</td><td><span className={`status ${status}`}>{managed ? status : "no target"}</span></td></tr>;
+            const pct = stock.targetLevel > 0 ? (stock.quantity / stock.targetLevel) * 100 : stock.quantity > 0 ? Infinity : 0;
+            const status = pct === Infinity ? "blue" : pct > 100 ? "blue" : pct >= 66 ? "green" : pct >= 33 ? "orange" : pct > 0 ? "red" : "black";
+            const percentage = pct === Infinity ? "—" : `${Math.round(pct)}%`;
+            return <tr key={stock.stockCode}><td>{stock.stockCode}</td><td>{stock.description}</td><td>{stock.stockGroup}</td><td>{stock.quantity}</td><td>{stock.targetLevel}</td><td><span className={`stock-percentage ${status}`}>{percentage}</span></td></tr>;
           })}
           {visibleStocks.length === 0 && <tr><td colSpan={6} className="empty">No stock data yet.</td></tr>}
         </tbody></table></div>{visibleStocks.length > 100 && <p className="footnote">Showing the first 100 rows for now.</p>}
