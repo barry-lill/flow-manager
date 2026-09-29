@@ -272,17 +272,11 @@ export default function Home() {
 
   const hasModule = (key: string) => enabledModules.includes(key);
 
-  const visibleStocks = useMemo(() => stocks
-    .filter((s) => {
-      const relevant = s.targetLevel > 0 || s.quantity > 0;
-      const groupMatch = selectedGroups.length === 0 || selectedGroups.includes(s.stockGroup);
-      return (includeZeroStock || relevant) && groupMatch;
-    })
-    .sort((a, b) => {
-      const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
-      const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
-      return aPct === bPct ? a.stockCode.localeCompare(b.stockCode) : aPct - bPct;
-    }), [stocks, selectedGroups, includeZeroStock]);
+  const visibleStocks = useMemo(() => [...stocks].sort((a, b) => {
+    const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
+    const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
+    return aPct === bPct ? a.stockCode.localeCompare(b.stockCode) : aPct - bPct;
+  }), [stocks]);
 
   if (!authReady) return <main><section className="hero"><h2>Flow Manager</h2><p>Connecting...</p></section></main>;
 
@@ -354,11 +348,7 @@ export default function Home() {
       </section>
 
       {hasModule("stock") && groups.length > 0 && <section className="card">
-        <div className="section-heading"><div><h3>Stock filters</h3><p>By default, show products with a target stock or actual stock. Products with both at zero are hidden.</p></div><button onClick={() => { setSelectedGroups([]); setIncludeZeroStock(false); }}>Reset filters</button></div>
-        <div className="filter-row">
-          <label className="filter-option"><input type="checkbox" checked={includeZeroStock} onChange={(e) => setIncludeZeroStock(e.target.checked)} /> Include zero stock / zero target</label>
-        </div>
-        <div className="section-heading"><div><h4>Product group</h4></div><button onClick={() => setSelectedGroups([])}>All groups</button></div>
+        <div className="section-heading"><div><h3>Product groups</h3><p>All 2,386 imported products are currently displayed so we can validate the imported stock data.</p></div><button onClick={() => setSelectedGroups([])}>Show all</button></div>
         <div className="chips">{groups.map((group) => <button key={group} className={selectedGroups.includes(group) ? "chip selected" : "chip"} onClick={() => setSelectedGroups((current) => current.includes(group) ? current.filter((g) => g !== group) : [...current, group])}>{group || "(No group)"}</button>)}</div>
       </section>}
 
