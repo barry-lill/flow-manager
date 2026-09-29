@@ -201,6 +201,8 @@ export default function Home() {
   }
 
   async function importProducts(file: File) {
+    setMessage(`Reading ${file.name}...`);
+    try {
     if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
     if (!mappingsReady || !mappings.stock) {
       setMessage("Stock import is not configured. An administrator must complete Settings → Stock data first.");
@@ -233,6 +235,9 @@ export default function Home() {
     if (error) { setMessage(`Could not save stock data: ${error.message}`); return; }
     await loadData(membership.orgId);
     setMessage(`Imported and saved ${imported.length.toLocaleString()} active products from ${file.name}.`);
+    } catch (error) {
+      setMessage(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async function importPurchaseOrders(file: File) {
@@ -340,7 +345,7 @@ export default function Home() {
         <h2>{membership.orgName}</h2><p>{message}</p>
         {enabledModules.length === 0 && <p className="footnote">No Flow Manager areas have been enabled for this customer. Ask your administrator to enable the required areas.</p>}
         {hasModule("stock") && <div className="uploads">
-          <label className="upload"><span>Import Sage Product Details</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importProducts(e.target.files[0])} /></label>
+          <label className="upload"><span>Import Sage Product Details</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { const file = e.target.files?.[0]; if (file) importProducts(file); e.currentTarget.value = ""; }} /></label>
         </div>}
         {hasModule("purchase_orders") && <div className="uploads">
           <label className="upload secondary"><span>Import Sage Purchase Orders</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importPurchaseOrders(e.target.files[0])} /></label>
