@@ -48,72 +48,80 @@ function daysBetween(start: string, end: string) {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
-function PurchaseOrdersSection({ orders, stocks, canEdit, onWorkflowTypeChange }: {
+function formatUKDate(value: string) {
+  if (!value) return "—";
+  const match = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function PurchaseOrdersSection({ orders, stocks }: {
   orders: PurchaseOrder[];
   stocks: Stock[];
-  canEdit: boolean;
-  onWorkflowTypeChange: (poNumber: string, stockCode: string, workflowType: "PTA" | "PTO") => void;
 }) {
-  const [filter, setFilter] = useState<"ALL" | "PTA" | "PTO">("ALL");
-  const [supplierFilter, setSupplierFilter] = useState<string[]>([]);
-
   const stockByCode = useMemo(() => new Map(stocks.map(stock => [stock.stockCode, stock])), [stocks]);
-  const suppliers = useMemo(() => [...new Set(orders.map(order => order.supplier).filter(Boolean))].sort(), [orders]);
 
   const rows = useMemo(() => {
-    const relevant = orders.filter(order => filter === "ALL" || order.workflowType === filter);
+    // Only show PO lines that have a stock reference which exists in the current stock data.
+    const relevant = orders.filter(order => order.stockCode.trim() !== "" && stockByCode.has(order.stockCode));
+
     const grouped = new Map<string, PurchaseOrder[]>();
     for (const order of relevant) {
-      if (supplierFilter.length && !supplierFilter.includes(order.supplier)) continue;
       if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []);
       grouped.get(order.stockCode)!.push(order);
     }
 
     const output: Array<PurchaseOrder & { projectedPct: number; status: string }> = [];
+
     for (const [stockCode, stockOrders] of grouped) {
       const stock = stockByCode.get(stockCode);
       let projected = stock?.quantity ?? 0;
       const target = stock?.targetLevel ?? 0;
-      const pta = stockOrders.filter(o => o.workflowType === "PTA").sort((a,b) =>
-        (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
-        (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31"));
-      const pto = stockOrders.filter(o => o.workflowType === "PTO").sort((a,b) =>
-        (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
-        (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31"));
 
-      for (const order of [...pta, ...pto]) {
-        if (order.workflowType === "PTA") {
-          projected += order.quantityOutstanding;
-          const pct = target > 0 ? (projected / target) * 100 : projected > 0 ? Infinity : 0;
-          output.push({ ...order, projectedPct: pct, status: bufferStatus(pct) });
-        } else {
-          const totalDays = daysBetween(order.orderDate, order.dueDate);
-          const elapsedDays = daysBetween(order.orderDate, new Date().toISOString().slice(0,10));
-          const ratio = totalDays > 0 ? elapsedDays / totalDays : 1;
-          output.push({ ...order, projectedPct: NaN, status: ratio >= 2/3 ? "red" : ratio >= 1/3 ? "orange" : "green" });
-        }
+      const sortedOrders = [...stockOrders].sort((a, b) =>
+        (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
+        (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31")
+      );
+
+      for (const order of sortedOrders) {
+        // Show the buffer before this PO arrives. The next PO is calculated
+        // against the stock position after all earlier POs for this stock code.
+        const pct = target > 0 ? (projected / target) * 100 : projected > 0 ? Infinity : 0;
+        output.push({ ...order, projectedPct: pct, status: bufferStatus(pct) });
+        projected += order.quantityOutstanding;
       }
     }
-    return output.sort((a,b) => {
-      const rank = (status: string) => ({ black:0, red:1, orange:2, green:3, blue:4 }[status] ?? 9);
-      return rank(a.status) - rank(b.status) || (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31");
-    });
-  }, [orders, stockByCode, filter, supplierFilter]);
+
+    // Keep the purchase-order sequence visible: earliest due dates first.
+    // Within the same date, use order date and then stock code.
+    return output.sort((a, b) =>
+      (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
+      (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31") ||
+      a.stockCode.localeCompare(b.stockCode) ||
+      a.poNumber.localeCompare(b.poNumber)
+    );
+  }, [orders, stockByCode]);
 
   return <section className="card" id="purchase-orders">
     <div className="section-heading">
-      <div><h3>Purchase Orders</h3><p>PTA orders are sequenced by due date and show projected buffer. PTO orders are shown by elapsed order-to-due time.</p></div>
-      <div className="po-filter-buttons">{(["ALL","PTA","PTO"] as const).map(value => <button key={value} className={filter === value ? "chip selected" : "chip"} onClick={() => setFilter(value)}>{value === "ALL" ? "All POs" : value}</button>)}</div>
+      <div>
+        <h3>Purchase Orders</h3>
+        <p>POs are sequenced by due date. Buffer shows the stock position before each PO is received.</p>
+      </div>
     </div>
-    {suppliers.length > 0 && <div className="chips po-suppliers">{suppliers.map(supplier => <button key={supplier} className={supplierFilter.includes(supplier) ? "chip selected" : "chip"} onClick={() => setSupplierFilter(current => current.includes(supplier) ? current.filter(s => s !== supplier) : [...current, supplier])}>{supplier}</button>)}</div>}
-    <div className="table-wrap"><table className="po-table"><thead><tr><th>PO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Type</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Projected buffer</th></tr></thead><tbody>
-      {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + index}>
-        <td>{order.poNumber}</td><td>{order.stockCode}</td><td>{order.description}</td><td>{order.supplier}</td>
-        <td>{canEdit ? <select className="po-type-select" value={order.workflowType} onChange={e => onWorkflowTypeChange(order.poNumber, order.stockCode, e.target.value as "PTA" | "PTO")}><option value="PTA">PTA</option><option value="PTO">PTO</option></select> : order.workflowType}</td>
-        <td>{order.orderDate || "—"}</td><td>{order.dueDate || "—"}</td><td>{order.quantityOutstanding}</td>
-        <td><span className={`po-status ${order.status}`}>{order.workflowType === "PTO" ? (order.status === "red" ? "Late stage" : order.status === "orange" ? "Mid stage" : "Early stage") : (Number.isFinite(order.projectedPct) ? Math.round(order.projectedPct) + "%" : "—")}</span></td>
+    <div className="table-wrap"><table className="po-table"><thead><tr>
+      <th>PO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Buffer before receipt</th>
+    </tr></thead><tbody>
+      {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + order.dueDate + "|" + index}>
+        <td>{order.poNumber}</td>
+        <td>{order.stockCode}</td>
+        <td>{order.description}</td>
+        <td>{order.supplier}</td>
+        <td>{formatUKDate(order.orderDate)}</td>
+        <td>{formatUKDate(order.dueDate)}</td>
+        <td>{order.quantityOutstanding}</td>
+        <td><span className={`po-status ${order.status}`}>{Number.isFinite(order.projectedPct) ? Math.round(order.projectedPct) + "%" : "—"}</span></td>
       </tr>)}
-      {!rows.length && <tr><td colSpan={9} className="empty">No purchase orders match the current filters.</td></tr>}
+      {!rows.length && <tr><td colSpan={8} className="empty">No purchase orders with a stock reference were found.</td></tr>}
     </tbody></table></div>
   </section>;
 }
