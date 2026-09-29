@@ -34,7 +34,7 @@ function parseDate(value: unknown) {
 
 function bufferStatus(pct: number) {
   if (!Number.isFinite(pct)) return "blue";
-  if (pct > 100) return "blue";
+  if (pct >= 100) return "blue";
   if (pct >= 66) return "green";
   if (pct >= 33) return "orange";
   if (pct > 0) return "red";
@@ -87,15 +87,17 @@ function PurchaseOrdersSection({ orders, stocks }: {
       for (const order of sortedOrders) {
         if (target <= 0) {
           let pct = 100;
+          let status = "nodate";
           if (order.dueDate) {
             const totalDays = daysBetween(order.orderDate, order.dueDate);
             const elapsedDays = daysBetween(order.orderDate, todayKey);
             pct = totalDays > 0
               ? 100 - (elapsedDays / totalDays) * 100
               : todayKey < order.dueDate ? 100 : 0;
+            status = bufferStatus(pct);
           }
 
-          output.push({ ...order, workflowType: "PTO", projectedPct: pct, status: bufferStatus(pct) });
+          output.push({ ...order, workflowType: "PTO", projectedPct: pct, status });
         } else {
           const pct = (projected / target) * 100;
           output.push({ ...order, workflowType: "PTA", projectedPct: pct, status: bufferStatus(pct) });
