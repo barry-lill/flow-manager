@@ -405,7 +405,7 @@ export default function Home() {
 
   useEffect(() => {
     const customer = new URLSearchParams(window.location.search).get("customer") || "current";
-    const key = \`flow-manager-scroll:\${customer}\`;
+    const key = `flow-manager-scroll:${customer}`;
     let frame = 0;
 
     const save = () => {
