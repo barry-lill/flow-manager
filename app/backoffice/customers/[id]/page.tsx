@@ -11,12 +11,14 @@ type Customer = {
   organization_modules: { module_key: string; enabled: boolean }[];
   data_sources: { source_key: string; name: string; configured: boolean }[];
 };
+type CustomerUser = { email: string; role: string };
 
 export default function CustomerDetail() {
   const params = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
+  const [users, setUsers] = useState<CustomerUser[]>([]);
   const [message, setMessage] = useState("Loading customer...");
   const [saving, setSaving] = useState(false);
 
@@ -42,6 +44,7 @@ export default function CustomerDetail() {
       setCustomer(loaded);
       setModules(modulesResult.modules || []);
       setSelected((loaded.organization_modules || []).filter((m) => m.enabled).map((m) => m.module_key));
+      setUsers(customerResult.users || []);
       setMessage("");
     })();
   }, [params.id]);
