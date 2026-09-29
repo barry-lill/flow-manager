@@ -259,7 +259,16 @@ export default function Home() {
     if (stockError || orderError) { setMessage(stockError?.message || orderError?.message || "Could not load data."); return; }
 
     const mappedStocks = stockRows.map((s) => ({ stockCode: s.stock_code, description: s.description, quantity: Number(s.quantity), targetLevel: Number(s.target_level), stockGroup: s.stock_group }));
-    const mappedOrders = (orderData ?? []).map((p) => ({ poNumber: p.po_number, stockCode: p.stock_code, description: p.description, supplier: p.supplier, orderDate: p.order_date ?? "", dueDate: p.due_date ?? "", quantityOutstanding: Number(p.quantity_outstanding), workflowType: (p.workflow_type === "PTO" ? "PTO" : "PTA") }));
+    const mappedOrders: PurchaseOrder[] = (orderData ?? []).map((p) => ({
+      poNumber: p.po_number,
+      stockCode: p.stock_code,
+      description: p.description,
+      supplier: p.supplier,
+      orderDate: p.order_date ?? "",
+      dueDate: p.due_date ?? "",
+      quantityOutstanding: Number(p.quantity_outstanding),
+      workflowType: p.workflow_type === "PTO" ? "PTO" : "PTA",
+    }));
     setStocks(mappedStocks);
     setOrders(mappedOrders);
     setGroups([...new Set(mappedStocks.map((s) => s.stockGroup).filter(Boolean))].sort());
