@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 
 type Stock = { stockCode: string; description: string; quantity: number; targetLevel: number; stockGroup: string };
-type PurchaseOrder = { poNumber: string; stockCode: string; description: string; supplier: string; orderDate: string; dueDate: string; quantityOutstanding: number };
+type PurchaseOrder = { poNumber: string; stockCode: string; description: string; supplier: string; orderDate: string; dueDate: string; quantityOutstanding: number; workflowType: "PTA" | "PTO" };
 type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | "viewer" | "guk_viewer" | "guk_admin" };
 type Mapping = Record<string, string>;
 
@@ -30,6 +30,92 @@ function readImportRows(sheet:XLSX.WorkSheet, settings:any):Record<string,unknow
 function parseDate(value: unknown) {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value ?? "").slice(0, 10);
+}
+
+function bufferStatus(pct: number) {
+  if (!Number.isFinite(pct)) return "blue";
+  if (pct > 100) return "blue";
+  if (pct >= 66) return "green";
+  if (pct >= 33) return "orange";
+  if (pct > 0) return "red";
+  return "black";
+}
+
+function daysBetween(start: string, end: string) {
+  if (!start || !end) return 0;
+  const a = new Date(start + "T00:00:00").getTime();
+  const b = new Date(end + "T00:00:00").getTime();
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+function PurchaseOrdersSection({ orders, stocks, canEdit, onWorkflowTypeChange }: {
+  orders: PurchaseOrder[];
+  stocks: Stock[];
+  canEdit: boolean;
+  onWorkflowTypeChange: (poNumber: string, stockCode: string, workflowType: "PTA" | "PTO") => void;
+}) {
+  const [filter, setFilter] = useState<"ALL" | "PTA" | "PTO">("ALL");
+  const [supplierFilter, setSupplierFilter] = useState<string[]>([]);
+
+  const stockByCode = useMemo(() => new Map(stocks.map(stock => [stock.stockCode, stock])), [stocks]);
+  const suppliers = useMemo(() => [...new Set(orders.map(order => order.supplier).filter(Boolean))].sort(), [orders]);
+
+  const rows = useMemo(() => {
+    const relevant = orders.filter(order => filter === "ALL" || order.workflowType === filter);
+    const grouped = new Map<string, PurchaseOrder[]>();
+    for (const order of relevant) {
+      if (supplierFilter.length && !supplierFilter.includes(order.supplier)) continue;
+      if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []);
+      grouped.get(order.stockCode)!.push(order);
+    }
+
+    const output: Array<PurchaseOrder & { projectedPct: number; status: string }> = [];
+    for (const [stockCode, stockOrders] of grouped) {
+      const stock = stockByCode.get(stockCode);
+      let projected = stock?.quantity ?? 0;
+      const target = stock?.targetLevel ?? 0;
+      const pta = stockOrders.filter(o => o.workflowType === "PTA").sort((a,b) =>
+        (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
+        (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31"));
+      const pto = stockOrders.filter(o => o.workflowType === "PTO").sort((a,b) =>
+        (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
+        (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31"));
+
+      for (const order of [...pta, ...pto]) {
+        if (order.workflowType === "PTA") {
+          projected += order.quantityOutstanding;
+          const pct = target > 0 ? (projected / target) * 100 : projected > 0 ? Infinity : 0;
+          output.push({ ...order, projectedPct: pct, status: bufferStatus(pct) });
+        } else {
+          const totalDays = daysBetween(order.orderDate, order.dueDate);
+          const elapsedDays = daysBetween(order.orderDate, new Date().toISOString().slice(0,10));
+          const ratio = totalDays > 0 ? elapsedDays / totalDays : 1;
+          output.push({ ...order, projectedPct: NaN, status: ratio >= 2/3 ? "red" : ratio >= 1/3 ? "orange" : "green" });
+        }
+      }
+    }
+    return output.sort((a,b) => {
+      const rank = (status: string) => ({ black:0, red:1, orange:2, green:3, blue:4 }[status] ?? 9);
+      return rank(a.status) - rank(b.status) || (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31");
+    });
+  }, [orders, stockByCode, filter, supplierFilter]);
+
+  return <section className="card" id="purchase-orders">
+    <div className="section-heading">
+      <div><h3>Purchase Orders</h3><p>PTA orders are sequenced by due date and show projected buffer. PTO orders are shown by elapsed order-to-due time.</p></div>
+      <div className="po-filter-buttons">{(["ALL","PTA","PTO"] as const).map(value => <button key={value} className={filter === value ? "chip selected" : "chip"} onClick={() => setFilter(value)}>{value === "ALL" ? "All POs" : value}</button>)}</div>
+    </div>
+    {suppliers.length > 0 && <div className="chips po-suppliers">{suppliers.map(supplier => <button key={supplier} className={supplierFilter.includes(supplier) ? "chip selected" : "chip"} onClick={() => setSupplierFilter(current => current.includes(supplier) ? current.filter(s => s !== supplier) : [...current, supplier])}>{supplier}</button>)}</div>}
+    <div className="table-wrap"><table className="po-table"><thead><tr><th>PO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Type</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Projected buffer</th></tr></thead><tbody>
+      {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + index}>
+        <td>{order.poNumber}</td><td>{order.stockCode}</td><td>{order.description}</td><td>{order.supplier}</td>
+        <td>{canEdit ? <select className="po-type-select" value={order.workflowType} onChange={e => onWorkflowTypeChange(order.poNumber, order.stockCode, e.target.value as "PTA" | "PTO")}><option value="PTA">PTA</option><option value="PTO">PTO</option></select> : order.workflowType}</td>
+        <td>{order.orderDate || "—"}</td><td>{order.dueDate || "—"}</td><td>{order.quantityOutstanding}</td>
+        <td><span className={`po-status ${order.status}`}>{order.workflowType === "PTO" ? (order.status === "red" ? "Late stage" : order.status === "orange" ? "Mid stage" : "Early stage") : (Number.isFinite(order.projectedPct) ? Math.round(order.projectedPct) + "%" : "—")}</span></td>
+      </tr>)}
+      {!rows.length && <tr><td colSpan={9} className="empty">No purchase orders match the current filters.</td></tr>}
+    </tbody></table></div>
+  </section>;
 }
 
 export default function Home() {
@@ -166,14 +252,14 @@ export default function Home() {
 
     const { data: orderData, error: orderError } = await supabase
       .from("purchase_orders")
-      .select("po_number,stock_code,description,supplier,order_date,due_date,quantity_outstanding")
+      .select("po_number,stock_code,description,supplier,order_date,due_date,quantity_outstanding,workflow_type")
       .eq("org_id", orgId)
       .order("due_date");
 
     if (stockError || orderError) { setMessage(stockError?.message || orderError?.message || "Could not load data."); return; }
 
     const mappedStocks = stockRows.map((s) => ({ stockCode: s.stock_code, description: s.description, quantity: Number(s.quantity), targetLevel: Number(s.target_level), stockGroup: s.stock_group }));
-    const mappedOrders = (orderData ?? []).map((p) => ({ poNumber: p.po_number, stockCode: p.stock_code, description: p.description, supplier: p.supplier, orderDate: p.order_date ?? "", dueDate: p.due_date ?? "", quantityOutstanding: Number(p.quantity_outstanding) }));
+    const mappedOrders = (orderData ?? []).map((p) => ({ poNumber: p.po_number, stockCode: p.stock_code, description: p.description, supplier: p.supplier, orderDate: p.order_date ?? "", dueDate: p.due_date ?? "", quantityOutstanding: Number(p.quantity_outstanding), workflowType: (p.workflow_type === "PTO" ? "PTO" : "PTA") }));
     setStocks(mappedStocks);
     setOrders(mappedOrders);
     setGroups([...new Set(mappedStocks.map((s) => s.stockGroup).filter(Boolean))].sort());
@@ -249,7 +335,7 @@ export default function Home() {
   }
 
   async function importPurchaseOrders(file: File) {
-    if (!membership || (membership.role !== "admin" && membership.role !== "manager")) return;
+    if (!membership || (membership.role !== "admin" && membership.role !== "manager" && membership.role !== "guk_admin")) return;
     if (!mappingsReady || !mappings.purchase_orders) {
       setMessage("Purchase order import is not configured. An administrator must complete Settings → Purchase orders first.");
       return;
@@ -276,12 +362,13 @@ export default function Home() {
         orderDate: map.order_date ? parseDate(row[map.order_date]) : "",
         dueDate: parseDate(row[map.due_date]),
         quantityOutstanding: Math.max(0, ordered - delivered),
+        workflowType: "PTA",
       };
     }).filter((p) => p.poNumber && p.stockCode && p.quantityOutstanding > 0);
 
     const { error: deleteError } = await supabase.from("purchase_orders").delete().eq("org_id", membership.orgId);
     if (deleteError) { setMessage(`Could not replace PO data: ${deleteError.message}`); return; }
-    const { error } = await supabase.from("purchase_orders").insert(imported.map((p) => ({ org_id: membership.orgId, po_number: p.poNumber, stock_code: p.stockCode, description: p.description, supplier: p.supplier, order_date: p.orderDate || null, due_date: p.dueDate || null, quantity_outstanding: p.quantityOutstanding })));
+    const { error } = await supabase.from("purchase_orders").insert(imported.map((p) => ({ org_id: membership.orgId, po_number: p.poNumber, stock_code: p.stockCode, description: p.description, supplier: p.supplier, order_date: p.orderDate || null, due_date: p.dueDate || null, quantity_outstanding: p.quantityOutstanding, workflow_type: p.workflowType })));
     if (error) { setMessage(`Could not save PO data: ${error.message}`); return; }
     await loadData(membership.orgId);
     setMessage(`Imported and saved ${imported.length.toLocaleString()} open/part-delivered PO lines from ${file.name}.`);
@@ -354,7 +441,7 @@ export default function Home() {
           {isGukAdmin && <button onClick={() => window.location.href="/backoffice"}>← Back to GUK Back Office</button>}
           {hasModule("stock") && <button onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}>Stock</button>}
           {hasModule("pta") && <button onClick={() => setMessage("PTA module is enabled. The daily replenishment screen is next.")}>PTA</button>}
-          {hasModule("purchase_orders") && <button onClick={() => setMessage("Purchase Orders module is enabled. The priority screen is next.")}>Purchase Orders</button>}
+          {hasModule("purchase_orders") && <button onClick={() => document.getElementById("purchase-orders")?.scrollIntoView({ behavior: "smooth" })}>Purchase Orders</button>}
           {hasModule("dbr") && <button onClick={() => setMessage("DBR module is enabled. The daily buffer review is next.")}>DBR</button>}
           {(membership.role === "admin" || isGukAdmin) && <button onClick={() => window.location.href=isGukAdmin ? "/settings?preview=1&customer=" + membership.orgId : "/settings"}>Settings</button>}
           <span className="version">v0.3</span><button onClick={signOut}>Sign out</button>
@@ -381,6 +468,13 @@ export default function Home() {
           <label className="upload secondary"><span>Import Sage Purchase Orders</span><input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && importPurchaseOrders(e.target.files[0])} /></label>
         </div>}
       </section>
+
+      {hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} canEdit={membership.role === "admin" || membership.role === "manager" || membership.role === "guk_admin"} onWorkflowTypeChange={async (poNumber, stockCode, workflowType) => {
+        if (!membership) return;
+        const { error } = await supabase.from("purchase_orders").update({ workflow_type: workflowType }).eq("org_id", membership.orgId).eq("po_number", poNumber).eq("stock_code", stockCode);
+        if (error) { setMessage("Could not update PO type: " + error.message); return; }
+        setOrders(current => current.map(order => order.poNumber === poNumber && order.stockCode === stockCode ? { ...order, workflowType } : order));
+      }} />}
 
       {hasModule("stock") && groups.length > 0 && <section className="card">
         <div className="section-heading"><div><h3>Stock filters</h3><p>Showing products with a target stock or actual stock. Products with both at zero are hidden.</p></div><button onClick={() => setSelectedGroups([])}>All groups</button></div>
