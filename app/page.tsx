@@ -77,11 +77,13 @@ export default function Home() {
   }
 
   async function loadMembership() {
-    const { data, error } = await supabase
+    const previewOrg = new URLSearchParams(window.location.search).get("customer");
+    let query = supabase
       .from("memberships")
       .select("org_id, role, organizations(name)")
-      .eq("user_id", session?.user.id)
-      .maybeSingle();
+      .eq("user_id", session?.user.id);
+    if (previewOrg) query = query.eq("org_id", previewOrg);
+    const { data, error } = await query.maybeSingle();
 
     if (error) { setMessage(error.message); return; }
     if (!data) { setMembership(null); return; }
