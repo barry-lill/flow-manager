@@ -300,7 +300,7 @@ export default function Home() {
           {hasModule("pta") && <button onClick={() => setMessage("PTA module is enabled. The daily replenishment screen is next.")}>PTA</button>}
           {hasModule("purchase_orders") && <button onClick={() => setMessage("Purchase Orders module is enabled. The priority screen is next.")}>Purchase Orders</button>}
           {hasModule("dbr") && <button onClick={() => setMessage("DBR module is enabled. The daily buffer review is next.")}>DBR</button>}
-          {membership.role === "admin" && <button onClick={() => window.location.href="/settings"}>Settings</button>}
+          {(membership.role === "admin" || isGukAdmin) && <button onClick={() => window.location.href=isGukAdmin ? "/settings?preview=1&customer=" + membership.orgId : "/settings"}>Settings</button>}
           <span className="version">v0.3</span><button onClick={signOut}>Sign out</button>
         </div>
       </header>
