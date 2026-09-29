@@ -130,7 +130,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
         <td>{formatUKDate(order.orderDate)}</td>
         <td>{formatUKDate(order.dueDate)}</td>
         <td>{order.quantityOutstanding}</td>
-        <td><span className={\`po-status \${order.status}\`}>{Math.round(order.projectedPct)}%</span></td>
+        <td><span className={`po-status ${order.status}`}>{Math.round(order.projectedPct)}%</span></td>
       </tr>)}
       {!rows.length && <tr><td colSpan={9} className="empty">No purchase orders with a stock reference were found.</td></tr>}
     </tbody></table></div>
