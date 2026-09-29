@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     if (!sheet) throw new Error("The workbook has no readable first worksheet.");
 
     const rows = readImportRows(sheet, source);
-    const imported = rows.map((row) => ({
+    const rawImported = rows.map((row) => ({
       org_id: orgId,
       po_number: String(row[mappings.po_number] ?? "").trim(),
       stock_code: String(row[mappings.stock_code] ?? "").trim(),
@@ -120,6 +120,24 @@ export async function POST(request: NextRequest) {
       ),
       workflow_type: "PTA" as const,
     })).filter((row) => row.po_number && row.stock_code && row.quantity_outstanding > 0);
+
+    // Sage can contain multiple lines for the same PO/product combination.
+    // Flow Manager stores one row per PO + stock code, so combine those lines.
+    const importedMap = new Map<string, typeof rawImported[number]>();
+    for (const row of rawImported) {
+      const key = `${row.po_number}|${row.stock_code}`;
+      const existing = importedMap.get(key);
+      if (existing) {
+        existing.quantity_outstanding += row.quantity_outstanding;
+        if (!existing.description && row.description) existing.description = row.description;
+        if (!existing.supplier && row.supplier) existing.supplier = row.supplier;
+        if (!existing.order_date && row.order_date) existing.order_date = row.order_date;
+        if (!existing.due_date && row.due_date) existing.due_date = row.due_date;
+      } else {
+        importedMap.set(key, { ...row });
+      }
+    }
+    const imported = Array.from(importedMap.values());
 
     if (!imported.length) throw new Error("No open or part-delivered purchase order lines could be read from the file. Check the file layout and mappings.");
 
