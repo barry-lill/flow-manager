@@ -1,0 +1,13 @@
+-- Flow Manager v0.4: purchase order workflow classification
+alter table public.purchase_orders
+  add column if not exists workflow_type text not null default 'PTA';
+
+alter table public.purchase_orders
+  drop constraint if exists purchase_orders_workflow_type_check;
+
+alter table public.purchase_orders
+  add constraint purchase_orders_workflow_type_check
+  check (workflow_type in ('PTA', 'PTO'));
+
+create index if not exists purchase_orders_workflow_idx
+  on public.purchase_orders(org_id, workflow_type);
