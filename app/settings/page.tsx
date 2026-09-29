@@ -88,7 +88,10 @@ export default function Settings() {
   }
   if(allowed===null)return <main><section className="hero"><h2>Settings</h2><p>Checking access...</p></section></main>;
   if(!allowed)return <main><section className="card auth"><h2>Access denied</h2><p>Only the customer administrator can configure data mappings.</p></section></main>;
-  return <main><header className="topbar"><div><div className="eyebrow">FLOW MANAGER · SETTINGS</div><h1>{orgName}</h1><p>Configure how your source files map into Flow Manager.</p></div><button onClick={()=>location.href={new URLSearchParams(window.location.search).get("preview")==="1"?"/?preview=1&customer="+orgId:"/"}}>Back to Flow Manager</button></header>
+  return <main><header className="topbar"><div><div className="eyebrow">FLOW MANAGER · SETTINGS</div><h1>{orgName}</h1><p>Configure how your source files map into Flow Manager.</p></div><button onClick={() => {
+        const preview = new URLSearchParams(window.location.search).get("preview") === "1";
+        location.href = preview ? "/?preview=1&customer=" + orgId : "/";
+      }}>Back to Flow Manager</button></header>
     <section className="card"><div className="section-heading"><div><h3>Data source</h3><p>Choose the export you are configuring.</p></div></div>
       <div className="chips">{["stock","purchase_orders"].map(k=><button key={k} className={source===k?"chip selected":"chip"} onClick={()=>changeSource(k)}>{k==="stock"?"Stock data":"Purchase orders"}</button>)}</div>
     </section>
