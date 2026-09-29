@@ -12,6 +12,11 @@ async function getUser(request: NextRequest) {
   return data.user || null;
 }
 
+function isGukAdmin(email?: string | null) {
+  return !!email && (process.env.FLOW_MANAGER_GUK_ADMIN_EMAILS || "")
+    .split(",").map(x => x.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase());
+}
+
 export async function GET(request: NextRequest) {
   const user = await getUser(request);
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -20,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   const admin = createClient(url!, process.env.SUPABASE_SECRET_KEY!, { auth: { autoRefreshToken:false, persistSession:false } });
   const { data: membership } = await admin.from("memberships").select("role").eq("org_id", orgId).eq("user_id", user.id).maybeSingle();
-  if (!membership) return NextResponse.json({ error: "You do not have access to this organisation." }, { status: 403 });
+  if (!membership && !isGukAdmin(user.email)) return NextResponse.json({ error: "You do not have access to this organisation." }, { status: 403 });
 
   const [{ data: sources, error: sourceError }, { data: mappings, error: mappingError }] = await Promise.all([
     admin.from("data_sources").select("source_key,name,description,configured").eq("org_id", orgId),
@@ -41,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createClient(url!, process.env.SUPABASE_SECRET_KEY!, { auth: { autoRefreshToken:false, persistSession:false } });
   const { data: membership } = await admin.from("memberships").select("role").eq("org_id", orgId).eq("user_id", user.id).maybeSingle();
-  if (membership?.role !== "admin") return NextResponse.json({ error: "Only the customer administrator can change field mappings." }, { status: 403 });
+  if (membership?.role !== "admin" && !isGukAdmin(user.email)) return NextResponse.json({ error: "Only the customer administrator can change field mappings." }, { status: 403 });
 
   const clean = mappings.filter((m: any) => typeof m.fieldKey === "string" && typeof m.sourceColumn === "string");
   await admin.from("data_mappings").delete().eq("org_id", orgId).eq("source_key", sourceKey);
