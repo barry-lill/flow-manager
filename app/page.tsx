@@ -72,7 +72,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
 
     const output: Array<PurchaseOrder & { projectedPct: number; status: string }> = [];
     const today = new Date();
-    const todayKey = \`\${today.getFullYear()}-\${String(today.getMonth() + 1).padStart(2, "0")}-\${String(today.getDate()).padStart(2, "0")}\`;
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     for (const [stockCode, stockOrders] of grouped) {
       const stock = stockByCode.get(stockCode);
