@@ -281,7 +281,7 @@ export default function Home() {
     .sort((a, b) => {
       const aPct = a.targetLevel > 0 ? a.quantity / a.targetLevel : a.quantity > 0 ? Infinity : 0;
       const bPct = b.targetLevel > 0 ? b.quantity / b.targetLevel : b.quantity > 0 ? Infinity : 0;
-      return bPct === aPct ? a.stockCode.localeCompare(b.stockCode) : bPct - aPct;
+      return aPct === bPct ? a.stockCode.localeCompare(b.stockCode) : aPct - bPct;
     }), [stocks, selectedGroups, includeZeroStock]);
 
   if (!authReady) return <main><section className="hero"><h2>Flow Manager</h2><p>Connecting...</p></section></main>;
