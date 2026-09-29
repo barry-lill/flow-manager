@@ -20,7 +20,34 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const admin = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
   const { data: customer, error } = await admin.from("organizations").select("id,name,created_at,organization_modules(module_key,enabled),data_sources(source_key,name,configured)").eq("id", id).single();
   if (error || !customer) return NextResponse.json({ error: error?.message || "Customer not found." }, { status: 404 });
-  return NextResponse.json({ customer });
+
+  // Give configured GUK admins view-only access so they can preview the customer app.
+  const gukEmails = (process.env.FLOW_MANAGER_GUK_ADMIN_EMAILS || "")
+    .split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (gukEmails.length) {
+    const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    for (const email of gukEmails) {
+      const user = users?.users.find((u) => u.email?.toLowerCase() === email);
+      if (user) {
+        await admin.from("memberships").upsert(
+          { org_id: id, user_id: user.id, role: "guk_viewer" },
+          { onConflict: "org_id,user_id" }
+        );
+      }
+    }
+  }
+
+  const { data: memberships, error: membershipError } = await admin
+    .from("memberships").select("user_id,role").eq("org_id", id);
+  const users = memberships?.length
+    ? await Promise.all(memberships.map(async (membership) => {
+        const { data } = await admin.auth.admin.getUserById(membership.user_id);
+        return { email: data.user?.email || "Unknown", role: membership.role };
+      }))
+    : [];
+  if (membershipError) return NextResponse.json({ error: membershipError.message }, { status: 500 });
+
+  return NextResponse.json({ customer, users });
 }
 
 
