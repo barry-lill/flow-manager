@@ -44,6 +44,7 @@ export default function Home() {
   const [mappings, setMappings] = useState<Record<string, Mapping>>({});
   const [mappingsReady, setMappingsReady] = useState(false);
   const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [isGukAdmin, setIsGukAdmin] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
@@ -68,6 +69,7 @@ export default function Home() {
     if (response.ok) {
       const result = await response.json();
       const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
+      setIsGukAdmin(!!result.allowed);
       if (result.allowed && !previewMode) {
         window.location.href = "/backoffice";
         return;
@@ -293,6 +295,7 @@ export default function Home() {
       <header className="topbar">
         <div><div className="eyebrow">FLOW MANAGER</div><h1>Flow, without the fuss.</h1><p>{membership.orgName} · {membership.role}</p></div>
         <div className="top-actions">
+          {isGukAdmin && <button onClick={() => window.location.href="/backoffice"}>← Back to GUK Back Office</button>}
           {hasModule("stock") && <button onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}>Stock</button>}
           {hasModule("pta") && <button onClick={() => setMessage("PTA module is enabled. The daily replenishment screen is next.")}>PTA</button>}
           {hasModule("purchase_orders") && <button onClick={() => setMessage("Purchase Orders module is enabled. The priority screen is next.")}>Purchase Orders</button>}
