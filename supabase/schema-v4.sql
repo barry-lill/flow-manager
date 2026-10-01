@@ -16,3 +16,8 @@ create index if not exists purchase_orders_workflow_idx
 -- Flow Manager v0.4.1: PO lines are source-system commitments, not unique PO/product pairs.
 alter table public.purchase_orders
   drop constraint if exists purchase_orders_org_id_po_number_stock_code_key;
+
+
+-- Flow Manager v0.5: minimum order quantity for replenishment calculations
+alter table public.stock
+  add column if not exists minimum_order_quantity numeric not null default 1;
