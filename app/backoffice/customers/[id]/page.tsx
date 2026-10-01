@@ -100,6 +100,34 @@ export default function CustomerDetail() {
     </section>
     <section className="card">
       <div className="section-heading">
+        <div><h3>Customer users</h3><p>Add people from the customer organisation and choose their access level.</p></div>
+      </div>
+      <div className="invite-row">
+        <input type="email" placeholder="Customer email address" id="customer-user-email" />
+        <select id="customer-user-role"><option value="viewer">Viewer</option><option value="manager">Manager</option><option value="admin">Administrator</option></select>
+        <button onClick={async () => {
+          const emailInput = document.getElementById("customer-user-email") as HTMLInputElement | null;
+          const roleInput = document.getElementById("customer-user-role") as HTMLSelectElement | null;
+          const email = emailInput?.value.trim() || "";
+          const role = roleInput?.value || "viewer";
+          if (!email) { setMessage("Customer email address is required."); return; }
+          setMessage("Adding customer user...");
+          const accessToken = await token();
+          const response = await fetch("/api/backoffice/customers/" + params.id + "/customer-users", {
+            method:"POST",
+            headers:{"Content-Type":"application/json",Authorization:"Bearer "+accessToken},
+            body:JSON.stringify({email,role})
+          });
+          const result = await response.json();
+          if (!response.ok) { setMessage(result.error || "Could not add customer user."); return; }
+          setUsers(result.users || []);
+          if (emailInput) emailInput.value = "";
+          setMessage(result.invitationSent ? "Customer user added and invitation sent." : "Customer user added.");
+        }}>Add customer user</button>
+      </div>
+    </section>
+    <section className="card">
+      <div className="section-heading">
         <div><h3>GUK users</h3><p>Add GUK team members and choose whether they can administer this customer or view only.</p></div>
       </div>
       <div className="invite-row">
