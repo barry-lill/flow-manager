@@ -78,7 +78,10 @@ function getReplenishments(stocks: Stock[], orders: PurchaseOrder[]) {
     .map(stock => {
       const incomingQty = incoming.get(stock.stockCode) || 0;
       const amount = stock.targetLevel - (stock.quantity + incomingQty);
-      return { ...stock, incomingQty, replenishmentAmount: amount };
+      const bufferPct = stock.targetLevel > 0
+        ? ((stock.targetLevel - amount) / stock.targetLevel) * 100
+        : stock.quantity > 0 ? Infinity : 0;
+      return { ...stock, incomingQty, replenishmentAmount: amount, bufferPct, bufferStatus: bufferStatus(bufferPct) };
     })
     .filter(row => row.replenishmentAmount >= row.moq && row.replenishmentAmount > 0)
     .sort((a, b) => b.replenishmentAmount - a.replenishmentAmount || a.stockCode.localeCompare(b.stockCode));
@@ -642,7 +645,7 @@ export default function Home() {
       {view === "replenishments" && hasModule("stock") && <section className="card">
         <div className="section-heading"><div><h2>Replenishments needed</h2><p>Target stock less actual stock and all incoming stock. Replenishments at or above the MOQ are shown.</p></div></div>
         <div className="table-wrap"><table className="replenishment-table"><thead><tr><th>Stock code</th><th>Description</th><th>Stock</th><th>Target</th><th>Incoming</th><th>MOQ</th><th>Replenishment</th></tr></thead><tbody>
-          {getReplenishments(stocks, orders).map(row => <tr key={row.stockCode}><td>{row.stockCode}</td><td>{row.description}</td><td>{formatQuantity(row.quantity)}</td><td>{formatQuantity(row.targetLevel)}</td><td>{formatQuantity(row.incomingQty)}</td><td>{formatQuantity(row.moq)}</td><td><strong>{formatQuantity(row.replenishmentAmount)}</strong></td></tr>)}
+          {getReplenishments(stocks, orders).map(row => <tr key={row.stockCode}><td>{row.stockCode}</td><td>{row.description}</td><td>{formatQuantity(row.quantity)}</td><td>{formatQuantity(row.targetLevel)}</td><td>{formatQuantity(row.incomingQty)}</td><td>{formatQuantity(row.moq)}</td><td><span className={"replenishment-amount " + row.bufferStatus}><strong>{formatQuantity(row.replenishmentAmount)}</strong></span></td></tr>)}
           {!getReplenishments(stocks, orders).length && <tr><td colSpan={7} className="empty">No replenishments are currently needed.</td></tr>}
         </tbody></table></div>
       </section>}
