@@ -115,7 +115,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
       for (const order of sortedOrders) {
         if (target <= 0) {
           let pct = 100;
-          let status = "nodate";
+          let status = "blue";
           if (order.dueDate) {
             const totalDays = daysBetween(order.orderDate, order.dueDate);
             const elapsedDays = daysBetween(order.orderDate, todayKey);
@@ -152,7 +152,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
       </div>
     </div>
     <div className="table-wrap"><table className="po-table"><thead><tr>
-      <th>PO</th><th>PTA/PTO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Buffer / time %</th>
+      <th>PO</th><th>PTA/PTO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Buffer</th>
     </tr></thead><tbody>
       {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + order.dueDate + "|" + index}>
         <td>{order.poNumber}</td>
