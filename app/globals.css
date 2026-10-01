@@ -130,3 +130,10 @@ button:disabled { opacity:.55; cursor:default; }
 .replenishment-amount.orange { background:#FFC000; color:#000; }
 .replenishment-amount.red { background:#FF0000; color:#000; }
 .replenishment-amount.black { background:#000; color:#fff; }
+
+
+.invite-row { display:grid; grid-template-columns:minmax(0,1fr) 180px auto; gap:10px; align-items:end; }
+.invite-row input, .invite-row select { margin-top:0; }
+.app-footer { padding:10px 0 4px; text-align:center; color:#8a94a3; font-size:11px; }
+.beta-badge { display:inline-block; vertical-align:middle; margin-left:6px; padding:4px 7px; border-radius:999px; background:#FFC000; color:#17202a; font-size:10px; letter-spacing:.08em; font-weight:800; }
+@media(max-width:700px){ .invite-row{grid-template-columns:1fr}.invite-row button{width:100%} }
