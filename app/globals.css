@@ -118,3 +118,8 @@ button:disabled { opacity:.55; cursor:default; }
 .brand-logo-button:hover { background:transparent; }
 .outstanding-header { white-space:nowrap; }
 .po-table th:nth-child(8), .po-table td:nth-child(8) { width:11%; text-align:right; white-space:nowrap; }
+
+.replenishment-table { table-layout:fixed; }
+.replenishment-table th:nth-child(1), .replenishment-table td:nth-child(1) { width:14%; white-space:normal; overflow-wrap:anywhere; }
+.replenishment-table th:nth-child(2), .replenishment-table td:nth-child(2) { width:32%; white-space:normal; overflow-wrap:anywhere; }
+.replenishment-table th:nth-child(3), .replenishment-table td:nth-child(3), .replenishment-table th:nth-child(4), .replenishment-table td:nth-child(4), .replenishment-table th:nth-child(5), .replenishment-table td:nth-child(5), .replenishment-table th:nth-child(6), .replenishment-table td:nth-child(6), .replenishment-table th:nth-child(7), .replenishment-table td:nth-child(7) { width:10.5%; text-align:right; white-space:nowrap; }
