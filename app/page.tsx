@@ -573,8 +573,37 @@ export default function Home() {
           </div>
         </section>
         <section className="grid home-metrics">
-          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {visibleStocks.filter((s) => { const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : s.quantity > 0 ? Infinity : 0; return pct <= 32; }).length.toLocaleString()}</small><small>View stock →</small></button>}
-          {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {(() => { const stockByCode = new Map(stocks.map((stock) => [stock.stockCode, stock])); const grouped = new Map<string, PurchaseOrder[]>(); for (const order of orders.filter((order) => order.stockCode.trim() && stockByCode.has(order.stockCode))) { if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []); grouped.get(order.stockCode)!.push(order); } let count = 0; for (const [code, stockOrders] of grouped) { const stock = stockByCode.get(code)!; let projected = stock.quantity; const sorted = [...stockOrders].sort((a,b) => (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") || (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31")); for (const order of sorted) { const pct = stock.targetLevel > 0 ? (projected / stock.targetLevel) * 100 : Infinity; const status = stock.targetLevel <= 0 ? "blue" : bufferStatus(pct); if (status === "black" || (status === "red" && order.workflowType === "PTA")) count++; if (stock.targetLevel > 0) projected += order.quantityOutstanding; } } return count; })().toLocaleString()}</small><small>View purchases →</small></button>}
+          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {stocks.filter((s) => { const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : s.quantity > 0 ? Infinity : 0; return pct <= 32; }).length.toLocaleString()}</small><small>View stock →</small></button>}
+          {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {(() => {
+            const stockByCode = new Map(stocks.map((stock) => [stock.stockCode, stock]));
+            const grouped = new Map<string, PurchaseOrder[]>();
+            for (const order of orders.filter((order) => order.stockCode.trim() && stockByCode.has(order.stockCode))) {
+              if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []);
+              grouped.get(order.stockCode)!.push(order);
+            }
+            const today = new Date();
+            const todayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+            let count = 0;
+            for (const [code, stockOrders] of grouped) {
+              const stock = stockByCode.get(code)!;
+              let projected = stock.quantity;
+              const sorted = [...stockOrders].sort((a,b) => (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") || (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31"));
+              for (const order of sorted) {
+                let status: string;
+                if (stock.targetLevel <= 0) {
+                  const totalDays = daysBetween(order.orderDate, order.dueDate);
+                  const elapsedDays = daysBetween(order.orderDate, todayKey);
+                  const pct = totalDays > 0 ? 100 - (elapsedDays / totalDays) * 100 : todayKey < order.dueDate ? 100 : 0;
+                  status = bufferStatus(pct);
+                } else {
+                  status = bufferStatus((projected / stock.targetLevel) * 100);
+                  projected += order.quantityOutstanding;
+                }
+                if (status === "black" || (status === "red" && stock.targetLevel > 0)) count++;
+              }
+            }
+            return count;
+          })}</small></small><small>View purchases →</small></button>}
         </section>
       </section>}
 
