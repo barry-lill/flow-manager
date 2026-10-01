@@ -105,24 +105,31 @@ export default function CustomerDetail() {
       <div className="invite-row">
         <input type="email" placeholder="Customer email address" id="customer-user-email" />
         <select id="customer-user-role"><option value="viewer">Viewer</option><option value="manager">Manager</option><option value="admin">Administrator</option></select>
-        <button onClick={async () => {
+        <button type="button" onClick={async () => {
           const emailInput = document.getElementById("customer-user-email") as HTMLInputElement | null;
           const roleInput = document.getElementById("customer-user-role") as HTMLSelectElement | null;
           const email = emailInput?.value.trim() || "";
           const role = roleInput?.value || "viewer";
           if (!email) { setMessage("Customer email address is required."); return; }
           setMessage("Adding customer user...");
-          const accessToken = await token();
-          const response = await fetch("/api/backoffice/customers/" + params.id + "/customer-users", {
-            method:"POST",
-            headers:{"Content-Type":"application/json",Authorization:"Bearer "+accessToken},
-            body:JSON.stringify({email,role})
-          });
-          const result = await response.json();
-          if (!response.ok) { setMessage(result.error || "Could not add customer user."); return; }
-          setUsers(result.users || []);
-          if (emailInput) emailInput.value = "";
-          setMessage(result.invitationSent ? "Customer user added and invitation sent." : "Customer user added.");
+          try {
+            const accessToken = await token();
+            if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
+            const response = await fetch("/api/backoffice/customers/" + params.id + "/customer-users", {
+              method:"POST",
+              headers:{"Content-Type":"application/json",Authorization:"Bearer "+accessToken},
+              body:JSON.stringify({email,role})
+            });
+            const text = await response.text();
+            let result: { error?: string; users?: CustomerUser[]; invitationSent?: boolean } = {};
+            try { result = JSON.parse(text); } catch { throw new Error("The server returned an unexpected response."); }
+            if (!response.ok) throw new Error(result.error || "Could not add customer user.");
+            setUsers(result.users || []);
+            if (emailInput) emailInput.value = "";
+            setMessage(result.invitationSent ? "Customer user added and invitation sent." : "Customer user added.");
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : "Could not add customer user.");
+          }
         }}>Add customer user</button>
       </div>
     </section>
