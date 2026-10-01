@@ -5,11 +5,11 @@ import type { Session } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 
-type Stock = { stockCode: string; description: string; quantity: number; targetLevel: number; stockGroup: string };
+type Stock = { stockCode: string; description: string; quantity: number; targetLevel: number; stockGroup: string; moq: number };
 type PurchaseOrder = { poNumber: string; stockCode: string; description: string; supplier: string; orderDate: string; dueDate: string; quantityOutstanding: number; workflowType: "PTA" | "PTO" };
 type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | "viewer" | "guk_viewer" | "guk_admin" };
 type Mapping = Record<string, string>;
-type View = "home" | "stock" | "purchases";
+type View = "home" | "stock" | "purchases" | "replenishments";
 type StockSortKey = "stockCode" | "description" | "stockGroup" | "quantity" | "targetLevel" | "percentage";
 type StockFilters = { stockCode: string; description: string; stockGroup: string; minQuantity: string; maxQuantity: string; minTarget: string; maxTarget: string; minPercentage: string; maxPercentage: string };
 
@@ -66,6 +66,22 @@ function formatUKDate(value: string) {
 function formatQuantity(value: number) {
   if (Number.isInteger(value)) return String(value);
   return value.toFixed(5).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function getReplenishments(stocks: Stock[], orders: PurchaseOrder[]) {
+  const incoming = new Map<string, number>();
+  for (const order of orders) {
+    if (!order.stockCode.trim()) continue;
+    incoming.set(order.stockCode, (incoming.get(order.stockCode) || 0) + order.quantityOutstanding);
+  }
+  return stocks
+    .map(stock => {
+      const incomingQty = incoming.get(stock.stockCode) || 0;
+      const amount = stock.targetLevel - (stock.quantity + incomingQty);
+      return { ...stock, incomingQty, replenishmentAmount: amount };
+    })
+    .filter(row => row.replenishmentAmount >= row.moq && row.replenishmentAmount > 0)
+    .sort((a, b) => b.replenishmentAmount - a.replenishmentAmount || a.stockCode.localeCompare(b.stockCode));
 }
 
 function getPurchaseOrderRows(orders: PurchaseOrder[], stocks: Stock[]) {
@@ -200,7 +216,7 @@ export default function Home() {
   const [view, setView] = useState<View>(() => {
     if (typeof window === "undefined") return "home";
     const requested = new URLSearchParams(window.location.search).get("view");
-    return requested === "stock" || requested === "purchases" ? requested : "home";
+    return requested === "stock" || requested === "purchases" || requested === "replenishments" ? requested : "home";
   });
   const [lastImports, setLastImports] = useState<{ stock: string | null; purchase_orders: string | null }>({ stock: null, purchase_orders: null });
   const [activeStockFilter, setActiveStockFilter] = useState<string | null>(null);
@@ -318,7 +334,7 @@ export default function Home() {
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase
         .from("stock")
-        .select("stock_code,description,quantity,target_level,stock_group")
+        .select("stock_code,description,quantity,target_level,stock_group,minimum_order_quantity")
         .eq("org_id", orgId)
         .order("stock_code")
         .range(from, from + 999);
@@ -335,7 +351,7 @@ export default function Home() {
 
     if (stockError || orderError) { setMessage(stockError?.message || orderError?.message || "Could not load data."); return; }
 
-    const mappedStocks = stockRows.map((s) => ({ stockCode: s.stock_code, description: s.description, quantity: Number(s.quantity), targetLevel: Number(s.target_level), stockGroup: s.stock_group }));
+    const mappedStocks = stockRows.map((s) => ({ stockCode: s.stock_code, description: s.description, quantity: Number(s.quantity), targetLevel: Number(s.target_level), stockGroup: s.stock_group, moq: Number(s.minimum_order_quantity) > 0 ? Number(s.minimum_order_quantity) : 1 }));
     const mappedOrders: PurchaseOrder[] = (orderData ?? []).map((p) => ({
       poNumber: p.po_number,
       stockCode: p.stock_code,
@@ -355,7 +371,7 @@ export default function Home() {
   useEffect(() => {
     const onPopState = () => {
       const requested = new URLSearchParams(window.location.search).get("view");
-      setView(requested === "stock" || requested === "purchases" ? requested : "home");
+      setView(requested === "stock" || requested === "purchases" || requested === "replenishments" ? requested : "home");
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -572,6 +588,7 @@ export default function Home() {
             <button className={view === "home" ? "nav-button active" : "nav-button"} onClick={() => navigateView("home")}>Home</button>
             {hasModule("stock") && <button className={view === "stock" ? "nav-button active" : "nav-button"} onClick={() => navigateView("stock")}>Stock</button>}
             {hasModule("purchase_orders") && <button className={view === "purchases" ? "nav-button active" : "nav-button"} onClick={() => navigateView("purchases")}>Purchases</button>}
+            {hasModule("stock") && <button className={view === "replenishments" ? "nav-button active" : "nav-button"} onClick={() => navigateView("replenishments")}>Replenishments</button>}
             {(membership.role === "admin" || isGukAdmin) && <button className="nav-button" onClick={() => window.location.href=isGukAdmin ? "/settings?preview=1&customer=" + membership.orgId : "/settings"}>Settings</button>}
             {isGukAdmin && <button className="nav-button" onClick={() => window.location.href="/backoffice"}>Back Office</button>}
             <button className="nav-button" onClick={signOut}>Sign out</button>
@@ -589,6 +606,7 @@ export default function Home() {
         </section>
         <section className="grid home-metrics">
           {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {stocks.filter((s) => { if (!(s.targetLevel > 0 || s.quantity > 0)) return false; const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : Infinity; return pct <= 32; }).length.toLocaleString()}</small><small>View stock →</small></button>}
+          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("replenishments")}><span>Replenishments needed</span><strong>{getReplenishments(stocks, orders).length.toLocaleString()}</strong><small>View replenishments →</small></button>}
           {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {getPurchaseOrderRows(orders, stocks).filter((order) => order.status === "black" || (order.status === "red" && order.workflowType === "PTA")).length.toLocaleString()}</small><small>View purchases →</small></button>}
         </section>
       </section>}
@@ -619,6 +637,14 @@ export default function Home() {
           {visibleStocks.length === 0 && <tr><td colSpan={6} className="empty">No products match the current filters.</td></tr>}
         </tbody></table></div>
         <p className="footnote">Showing {Math.min(visibleRowCount, visibleStocks.length).toLocaleString()} of {visibleStocks.length.toLocaleString()} matching products.</p>
+      </section>}
+
+      {view === "replenishments" && hasModule("stock") && <section className="card">
+        <div className="section-heading"><div><h2>Replenishments needed</h2><p>Target stock less actual stock and all incoming stock. Replenishments at or above the MOQ are shown.</p></div></div>
+        <div className="table-wrap"><table className="replenishment-table"><thead><tr><th>Stock code</th><th>Description</th><th>Stock</th><th>Target</th><th>Incoming</th><th>MOQ</th><th>Replenishment</th></tr></thead><tbody>
+          {getReplenishments(stocks, orders).map(row => <tr key={row.stockCode}><td>{row.stockCode}</td><td>{row.description}</td><td>{formatQuantity(row.quantity)}</td><td>{formatQuantity(row.targetLevel)}</td><td>{formatQuantity(row.incomingQty)}</td><td>{formatQuantity(row.moq)}</td><td><strong>{formatQuantity(row.replenishmentAmount)}</strong></td></tr>)}
+          {!getReplenishments(stocks, orders).length && <tr><td colSpan={7} className="empty">No replenishments are currently needed.</td></tr>}
+        </tbody></table></div>
       </section>}
 
       {view === "purchases" && hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} />}
