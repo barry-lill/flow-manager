@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
@@ -203,7 +203,6 @@ export default function Home() {
   const [activeStockFilter, setActiveStockFilter] = useState<string | null>(null);
   const [stockFilters, setStockFilters] = useState<StockFilters>({ stockCode: "", description: "", stockGroup: "", minQuantity: "", maxQuantity: "", minTarget: "", maxTarget: "", minPercentage: "", maxPercentage: "" });
   const [stockSort, setStockSort] = useState<{ key: StockSortKey; direction: "asc" | "desc" }>({ key: "percentage", direction: "asc" });
-  const scrollRestored = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
