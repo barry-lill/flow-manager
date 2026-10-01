@@ -114,3 +114,8 @@ button:disabled { opacity:.55; cursor:default; }
 .filter-divider { height:1px; background:#e1e5ea; margin:8px 0; }
 .filter-number-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 @media(max-width:850px){ .topbar{align-items:flex-start; flex-direction:column}.header-right{justify-content:flex-start}.import-grid{grid-template-columns:1fr}.last-import{white-space:normal} }
+
+.brand-logo-button { border:0; background:transparent; padding:0; margin:0; line-height:0; cursor:pointer; border-radius:8px; }
+.brand-logo-button:hover { background:transparent; }
+.outstanding-header { white-space:nowrap; }
+.po-table th:nth-child(8), .po-table td:nth-child(8) { width:11%; text-align:right; white-space:nowrap; }
