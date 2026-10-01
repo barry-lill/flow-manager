@@ -152,7 +152,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
       </div>
     </div>
     <div className="table-wrap"><table className="po-table"><thead><tr>
-      <th>PO</th><th>PTA/PTO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th>Outstanding</th><th>Buffer</th>
+      <th>PO</th><th>PTA/PTO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th className="outstanding-header">Outstanding</th><th>Buffer</th>
     </tr></thead><tbody>
       {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + order.dueDate + "|" + index}>
         <td>{order.poNumber}</td>
@@ -162,7 +162,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
         <td>{order.supplier}</td>
         <td>{formatUKDate(order.orderDate)}</td>
         <td>{formatUKDate(order.dueDate)}</td>
-        <td>{order.quantityOutstanding}</td>
+        <td>{order.quantityOutstanding.toFixed(5)}</td>
         <td><span className={`po-status ${order.status}`}>{Math.round(order.projectedPct)}%</span></td>
       </tr>)}
       {!rows.length && <tr><td colSpan={9} className="empty">No purchase orders with a stock reference were found.</td></tr>}
@@ -347,8 +347,11 @@ export default function Home() {
   }, []);
 
   function navigateView(next: View) {
-    const url = next === "home" ? "/" : "/?view=" + next;
-    window.history.pushState({}, "", url);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("view");
+    if (next !== "home") params.set("view", next);
+    const query = params.toString();
+    window.history.pushState({}, "", query ? "/?" + query : "/");
     setView(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
     setActiveStockFilter(null);
@@ -545,7 +548,7 @@ export default function Home() {
     <main>
       <header className="topbar">
         <div className="brand">
-          <img src={goldrattLogo} alt="Goldratt" className="brand-logo" />
+          <button className="brand-logo-button" onClick={() => navigateView("home")} aria-label="Flow Manager home"><img src={goldrattLogo} alt="Goldratt" className="brand-logo" /></button>
           <div className="brand-copy"><div className="brand-title">FLOW MANAGER</div><div className="brand-tagline">Flow, without the fuss.</div></div>
         </div>
         <div className="header-right">
@@ -570,8 +573,8 @@ export default function Home() {
           </div>
         </section>
         <section className="grid home-metrics">
-          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>View stock →</small></button>}
-          {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>View purchases →</small></button>}
+          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {visibleStocks.filter((s) => { const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : s.quantity > 0 ? Infinity : 0; return pct <= 32; }).length.toLocaleString()}</small><small>View stock →</small></button>}
+          {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {(() => { const stockByCode = new Map(stocks.map((stock) => [stock.stockCode, stock])); const grouped = new Map<string, PurchaseOrder[]>(); for (const order of orders.filter((order) => order.stockCode.trim() && stockByCode.has(order.stockCode))) { if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []); grouped.get(order.stockCode)!.push(order); } let count = 0; for (const [code, stockOrders] of grouped) { const stock = stockByCode.get(code)!; let projected = stock.quantity; const sorted = [...stockOrders].sort((a,b) => (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") || (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31")); for (const order of sorted) { const pct = stock.targetLevel > 0 ? (projected / stock.targetLevel) * 100 : Infinity; const status = stock.targetLevel <= 0 ? "blue" : bufferStatus(pct); if (status === "black" || (status === "red" && order.workflowType === "PTA")) count++; if (stock.targetLevel > 0) projected += order.quantityOutstanding; } } return count; })().toLocaleString()}</small><small>View purchases →</small></button>}
         </section>
       </section>}
 
