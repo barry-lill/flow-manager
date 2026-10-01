@@ -650,7 +650,8 @@ export default function Home() {
         </tbody></table></div>
       </section>}
 
-      {view === "purchases" && hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} />}\n      <footer className="app-footer">© Goldratt UK 2026 · Flow Manager Beta</footer>
+      {view === "purchases" && hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} />}
+      <footer className="app-footer">© Goldratt UK 2026 · Flow Manager Beta</footer>
     </main>
   );
 }
