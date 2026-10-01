@@ -123,3 +123,10 @@ button:disabled { opacity:.55; cursor:default; }
 .replenishment-table th:nth-child(1), .replenishment-table td:nth-child(1) { width:14%; white-space:normal; overflow-wrap:anywhere; }
 .replenishment-table th:nth-child(2), .replenishment-table td:nth-child(2) { width:32%; white-space:normal; overflow-wrap:anywhere; }
 .replenishment-table th:nth-child(3), .replenishment-table td:nth-child(3), .replenishment-table th:nth-child(4), .replenishment-table td:nth-child(4), .replenishment-table th:nth-child(5), .replenishment-table td:nth-child(5), .replenishment-table th:nth-child(6), .replenishment-table td:nth-child(6), .replenishment-table th:nth-child(7), .replenishment-table td:nth-child(7) { width:10.5%; text-align:right; white-space:nowrap; }
+
+.replenishment-amount { display:block; padding:9px 8px; font-weight:700; text-align:center; }
+.replenishment-amount.blue { background:#00B0F0; color:#000; }
+.replenishment-amount.green { background:#00B050; color:#000; }
+.replenishment-amount.orange { background:#FFC000; color:#000; }
+.replenishment-amount.red { background:#FF0000; color:#000; }
+.replenishment-amount.black { background:#000; color:#fff; }
