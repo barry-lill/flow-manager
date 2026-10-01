@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         description: String(row[mappings.description] ?? ""),
         quantity: toNumber(row[mappings.quantity]),
         target_level: toNumber(row[mappings.target_level]),
+        minimum_order_quantity: mappings.minimum_order_quantity && toNumber(row[mappings.minimum_order_quantity]) > 0 ? toNumber(row[mappings.minimum_order_quantity]) : 1,
         stock_group: mappings.stock_group ? String(row[mappings.stock_group] ?? "") : "",
       }))
       .filter((row) => row.stock_code);
