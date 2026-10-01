@@ -416,7 +416,6 @@ export default function Home() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Stock import failed.");
       setLastImports((current) => ({ ...current, stock: new Date().toISOString() }));
-      setLastImports((current) => ({ ...current, purchase_orders: new Date().toISOString() }));
       await loadData(membership.orgId);
       setMessage(result.message || `Imported and saved ${result.imported ?? 0} active products from ${file.name}.`);
     } catch (error) {
@@ -455,6 +454,7 @@ export default function Home() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Purchase order import failed.");
 
+      setLastImports((current) => ({ ...current, purchase_orders: new Date().toISOString() }));
       await loadData(membership.orgId);
       setMessage(result.message || `Imported and saved ${result.imported ?? 0} open/part-delivered PO lines from ${file.name}.`);
     } catch (error) {
