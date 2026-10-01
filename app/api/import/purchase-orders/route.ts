@@ -132,6 +132,13 @@ export async function POST(request: NextRequest) {
       if (error) throw new Error(`Could not save PO data: ${error.message}`);
     }
 
+    const { error: importStampError } = await admin
+      .from("data_sources")
+      .update({ last_imported_at: new Date().toISOString() })
+      .eq("org_id", orgId)
+      .eq("source_key", "purchase_orders");
+    if (importStampError) throw new Error(`Import succeeded but the import timestamp could not be saved: ${importStampError.message}`);
+
     return NextResponse.json({
       ok: true,
       imported: imported.length,
