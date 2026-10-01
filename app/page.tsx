@@ -603,7 +603,7 @@ export default function Home() {
               }
             }
             return count;
-          })}</small></small><small>View purchases →</small></button>}
+          })}</small><small>View purchases →</small></button>}
         </section>
       </section>}
 
