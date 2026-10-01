@@ -27,8 +27,7 @@ p { color:#697586; margin:6px 0 0; }
 .hero, .card { background:#fff; border:1px solid #e1e5ea; border-radius:14px; padding:22px; margin-bottom:18px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
 .hero { background:#fbfcfd; }
 .uploads { display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; }
-.upload { display:inline-flex; align-items:center; background:#17202a; color:white; padding:11px 15px; border-radius:9px; cursor:pointer; font-weight:700; font-size:14px; }
-.upload.secondary { background:#fff; color:#17202a; border:1px solid #cfd5dc; }
+.upload, .upload.secondary { display:inline-flex; align-items:center; background:#203f8f; color:white; padding:11px 15px; border-radius:9px; cursor:pointer; font-weight:700; font-size:14px; }
 .upload input { display:none; }
 .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
 .metric span { color:#697586; font-size:13px; }
@@ -39,7 +38,7 @@ button { border:0; background:#eef1f4; border-radius:8px; padding:8px 12px; curs
 .chip.selected { background:#17202a; color:#fff; }
 .table-wrap { overflow:visible; width:100%; }
 .stock-table { width:100%; table-layout:fixed; }
-.stock-table th:nth-child(1), .stock-table td:nth-child(1) { width:12%; }
+.stock-table th:nth-child(1), .stock-table td:nth-child(1) { width:12%; white-space:normal; overflow-wrap:anywhere; }
 .stock-table th:nth-child(2), .stock-table td:nth-child(2) { width:35%; white-space:normal; overflow-wrap:anywhere; }
 .stock-table th:nth-child(3), .stock-table td:nth-child(3) { width:18%; white-space:normal; overflow-wrap:anywhere; }
 .stock-table th:nth-child(4), .stock-table td:nth-child(4) { width:11%; text-align:right; }
