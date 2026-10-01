@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/capture-stock-history",
+      "schedule": "0 23 * * *"
+    }
+  ]
+}
