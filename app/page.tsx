@@ -583,7 +583,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand">
           <button className="brand-logo-button" onClick={() => navigateView("home")} aria-label="Flow Manager home"><img src={goldrattLogo} alt="Goldratt" className="brand-logo" /></button>
-          <div className="brand-copy"><div className="brand-title">FLOW MANAGER</div><div className="brand-tagline">Flow, without the fuss.</div></div>
+          <div className="brand-copy"><div className="brand-title">FLOW MANAGER <span className="beta-badge">BETA</span></div><div className="brand-tagline">Flow, without the fuss.</div></div>
         </div>
         <div className="header-right">
           <div className="customer-name">{membership.orgName}</div>
@@ -591,7 +591,7 @@ export default function Home() {
             <button className={view === "home" ? "nav-button active" : "nav-button"} onClick={() => navigateView("home")}>Home</button>
             {hasModule("stock") && <button className={view === "stock" ? "nav-button active" : "nav-button"} onClick={() => navigateView("stock")}>Stock</button>}
             {hasModule("purchase_orders") && <button className={view === "purchases" ? "nav-button active" : "nav-button"} onClick={() => navigateView("purchases")}>Purchases</button>}
-            {hasModule("stock") && <button className={view === "replenishments" ? "nav-button active" : "nav-button"} onClick={() => navigateView("replenishments")}>Replenishments</button>}
+            {hasModule("pta") && <button className={view === "replenishments" ? "nav-button active" : "nav-button"} onClick={() => navigateView("replenishments")}>Replenishments</button>}
             {(membership.role === "admin" || isGukAdmin) && <button className="nav-button" onClick={() => window.location.href=isGukAdmin ? "/settings?preview=1&customer=" + membership.orgId : "/settings"}>Settings</button>}
             {isGukAdmin && <button className="nav-button" onClick={() => window.location.href="/backoffice"}>Back Office</button>}
             <button className="nav-button" onClick={signOut}>Sign out</button>
@@ -609,7 +609,7 @@ export default function Home() {
         </section>
         <section className="grid home-metrics">
           {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {stocks.filter((s) => { if (!(s.targetLevel > 0 || s.quantity > 0)) return false; const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : Infinity; const status = pct === Infinity ? "blue" : bufferStatus(pct); return status === "red" || status === "black"; }).length.toLocaleString()}</small><small>View stock →</small></button>}
-          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("replenishments")}><span>Replenishments needed</span><strong>{getReplenishments(stocks, orders).length.toLocaleString()}</strong><small>View replenishments →</small></button>}
+          {hasModule("pta") && <button className="metric metric-link" onClick={() => navigateView("replenishments")}><span>Replenishments needed</span><strong>{getReplenishments(stocks, orders).length.toLocaleString()}</strong><small>View replenishments →</small></button>}
           {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {getPurchaseOrderRows(orders, stocks).filter((order) => order.status === "black" || (order.status === "red" && order.workflowType === "PTA")).length.toLocaleString()}</small><small>View purchases →</small></button>}
         </section>
       </section>}
@@ -642,7 +642,7 @@ export default function Home() {
         <p className="footnote">Showing {Math.min(visibleRowCount, visibleStocks.length).toLocaleString()} of {visibleStocks.length.toLocaleString()} matching products.</p>
       </section>}
 
-      {view === "replenishments" && hasModule("stock") && <section className="card">
+      {view === "replenishments" && hasModule("pta") && <section className="card">
         <div className="section-heading"><div><h2>Replenishments needed</h2><p>Target stock less actual stock and all incoming stock. Replenishments at or above the MOQ are shown.</p></div></div>
         <div className="table-wrap"><table className="replenishment-table"><thead><tr><th>Stock code</th><th>Description</th><th>Stock</th><th>Target</th><th>Incoming</th><th>MOQ</th><th>Replenishment</th></tr></thead><tbody>
           {getReplenishments(stocks, orders).map(row => <tr key={row.stockCode}><td>{row.stockCode}</td><td>{row.description}</td><td>{formatQuantity(row.quantity)}</td><td>{formatQuantity(row.targetLevel)}</td><td>{formatQuantity(row.incomingQty)}</td><td>{formatQuantity(row.moq)}</td><td><span className={"replenishment-amount " + row.bufferStatus}><strong>{formatQuantity(row.replenishmentAmount)}</strong></span></td></tr>)}
@@ -650,7 +650,7 @@ export default function Home() {
         </tbody></table></div>
       </section>}
 
-      {view === "purchases" && hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} />}
+      {view === "purchases" && hasModule("purchase_orders") && <PurchaseOrdersSection orders={orders} stocks={stocks} />}\n      <footer className="app-footer">© Goldratt UK 2026 · Flow Manager Beta</footer>
     </main>
   );
 }
