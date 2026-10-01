@@ -11,6 +11,7 @@ const definitions: Record<string, Mapping[]> = {
     {fieldKey:"description",label:"Description",sourceColumn:"",required:true},
     {fieldKey:"quantity",label:"Actual stock",sourceColumn:"",required:true},
     {fieldKey:"target_level",label:"Target stock",sourceColumn:"",required:true},
+    {fieldKey:"minimum_order_quantity",label:"Minimum order quantity (MOQ)",sourceColumn:"",required:false},
     {fieldKey:"stock_group",label:"Stock group",sourceColumn:"",required:false},
     {fieldKey:"inactive_flag",label:"Inactive flag",sourceColumn:"",required:false}
   ],
@@ -78,6 +79,7 @@ export default function Settings() {
       description:["description","productrecord.description","purchaseorderitem.description"],
       quantity:["quantity","quantity in stock","productrecord.quantityinstock","purchaseorderitem.quantity"],
       target_level:["target stock","reorder level","quantity reorder level","productrecord.quantityreorderlevel"],
+      minimum_order_quantity:["minimum order quantity","minimum order qty","moq","min order quantity"],
       stock_group:["stock group","category","category name","productrecord.categoryname"],
       inactive_flag:["inactive flag","inactiveflag","productrecord.inactiveflag"],
       po_number:["po number","number","purchaseorder.number"],
