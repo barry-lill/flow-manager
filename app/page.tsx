@@ -63,6 +63,65 @@ function formatUKDate(value: string) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
+function formatQuantity(value: number) {
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(5).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function getPurchaseOrderRows(orders: PurchaseOrder[], stocks: Stock[]) {
+  const stockByCode = new Map(stocks.map(stock => [stock.stockCode, stock]));
+  const relevant = orders.filter(order => order.stockCode.trim() !== "" && stockByCode.has(order.stockCode));
+  const grouped = new Map<string, PurchaseOrder[]>();
+
+  for (const order of relevant) {
+    if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []);
+    grouped.get(order.stockCode)!.push(order);
+  }
+
+  const output: Array<PurchaseOrder & { projectedPct: number; status: string }> = [];
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  for (const [stockCode, stockOrders] of grouped) {
+    const stock = stockByCode.get(stockCode);
+    let projected = stock?.quantity ?? 0;
+    const target = stock?.targetLevel ?? 0;
+    const sortedOrders = [...stockOrders].sort((a, b) =>
+      (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
+      (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31")
+    );
+
+    for (const order of sortedOrders) {
+      if (target <= 0) {
+        let pct = 100;
+        let status = "blue";
+        if (order.dueDate) {
+          const totalDays = daysBetween(order.orderDate, order.dueDate);
+          const elapsedDays = daysBetween(order.orderDate, todayKey);
+          pct = totalDays > 0
+            ? 100 - (elapsedDays / totalDays) * 100
+            : todayKey < order.dueDate ? 100 : 0;
+          status = bufferStatus(pct);
+        }
+        output.push({ ...order, workflowType: "PTO", projectedPct: pct, status });
+      } else {
+        const pct = (projected / target) * 100;
+        output.push({ ...order, workflowType: "PTA", projectedPct: pct, status: bufferStatus(pct) });
+        projected += order.quantityOutstanding;
+      }
+    }
+  }
+
+  return output.sort((a, b) => {
+    const aPct = Number.isFinite(a.projectedPct) ? a.projectedPct : Infinity;
+    const bPct = Number.isFinite(b.projectedPct) ? b.projectedPct : Infinity;
+    return aPct - bPct ||
+      a.supplier.localeCompare(b.supplier) ||
+      a.stockCode.localeCompare(b.stockCode) ||
+      a.poNumber.localeCompare(b.poNumber);
+  });
+}
+
 function StockColumnMenu({ label, type, value, onValueChange, sort, onSort, options }: {
   label: string; type: "text" | "number" | "select"; value: string;
   onValueChange: (value: string) => void; sort: "asc" | "desc" | null;
@@ -86,63 +145,7 @@ function PurchaseOrdersSection({ orders, stocks }: {
   orders: PurchaseOrder[];
   stocks: Stock[];
 }) {
-  const stockByCode = useMemo(() => new Map(stocks.map(stock => [stock.stockCode, stock])), [stocks]);
-
-  const rows = useMemo(() => {
-    // A PO for a stock item with no target quantity is treated as PTO.
-    const relevant = orders.filter(order => order.stockCode.trim() !== "" && stockByCode.has(order.stockCode));
-
-    const grouped = new Map<string, PurchaseOrder[]>();
-    for (const order of relevant) {
-      if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []);
-      grouped.get(order.stockCode)!.push(order);
-    }
-
-    const output: Array<PurchaseOrder & { projectedPct: number; status: string }> = [];
-    const today = new Date();
-    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-    for (const [stockCode, stockOrders] of grouped) {
-      const stock = stockByCode.get(stockCode);
-      let projected = stock?.quantity ?? 0;
-      const target = stock?.targetLevel ?? 0;
-
-      const sortedOrders = [...stockOrders].sort((a, b) =>
-        (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") ||
-        (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31")
-      );
-
-      for (const order of sortedOrders) {
-        if (target <= 0) {
-          let pct = 100;
-          let status = "blue";
-          if (order.dueDate) {
-            const totalDays = daysBetween(order.orderDate, order.dueDate);
-            const elapsedDays = daysBetween(order.orderDate, todayKey);
-            pct = totalDays > 0
-              ? 100 - (elapsedDays / totalDays) * 100
-              : todayKey < order.dueDate ? 100 : 0;
-            status = bufferStatus(pct);
-          }
-
-          output.push({ ...order, workflowType: "PTO", projectedPct: pct, status });
-        } else {
-          const pct = (projected / target) * 100;
-          output.push({ ...order, workflowType: "PTA", projectedPct: pct, status: bufferStatus(pct) });
-          projected += order.quantityOutstanding;
-        }
-      }
-    }
-
-    return output.sort((a, b) => {
-      const aPct = Number.isFinite(a.projectedPct) ? a.projectedPct : Infinity;
-      const bPct = Number.isFinite(b.projectedPct) ? b.projectedPct : Infinity;
-      return aPct - bPct ||
-        a.supplier.localeCompare(b.supplier) ||
-        a.stockCode.localeCompare(b.stockCode) ||
-        a.poNumber.localeCompare(b.poNumber);
-    });
-  }, [orders, stockByCode]);
+  const rows = useMemo(() => getPurchaseOrderRows(orders, stocks), [orders, stocks]);
 
   return <section className="card" id="purchase-orders">
     <div className="section-heading">
@@ -203,6 +206,18 @@ export default function Home() {
   const [activeStockFilter, setActiveStockFilter] = useState<string | null>(null);
   const [stockFilters, setStockFilters] = useState<StockFilters>({ stockCode: "", description: "", stockGroup: "", minQuantity: "", maxQuantity: "", minTarget: "", maxTarget: "", minPercentage: "", maxPercentage: "" });
   const [stockSort, setStockSort] = useState<{ key: StockSortKey; direction: "asc" | "desc" }>({ key: "percentage", direction: "asc" });
+
+  useEffect(() => {
+    if (!activeStockFilter) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element && !target.closest(".filterable-th")) {
+        setActiveStockFilter(null);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [activeStockFilter]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true); });
@@ -573,37 +588,8 @@ export default function Home() {
           </div>
         </section>
         <section className="grid home-metrics">
-          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {stocks.filter((s) => { const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : s.quantity > 0 ? Infinity : 0; return pct <= 32; }).length.toLocaleString()}</small><small>View stock →</small></button>}
-          {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {(() => {
-            const stockByCode = new Map(stocks.map((stock) => [stock.stockCode, stock]));
-            const grouped = new Map<string, PurchaseOrder[]>();
-            for (const order of orders.filter((order) => order.stockCode.trim() && stockByCode.has(order.stockCode))) {
-              if (!grouped.has(order.stockCode)) grouped.set(order.stockCode, []);
-              grouped.get(order.stockCode)!.push(order);
-            }
-            const today = new Date();
-            const todayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
-            let count = 0;
-            for (const [code, stockOrders] of grouped) {
-              const stock = stockByCode.get(code)!;
-              let projected = stock.quantity;
-              const sorted = [...stockOrders].sort((a,b) => (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31") || (a.orderDate || "9999-12-31").localeCompare(b.orderDate || "9999-12-31"));
-              for (const order of sorted) {
-                let status: string;
-                if (stock.targetLevel <= 0) {
-                  const totalDays = daysBetween(order.orderDate, order.dueDate);
-                  const elapsedDays = daysBetween(order.orderDate, todayKey);
-                  const pct = totalDays > 0 ? 100 - (elapsedDays / totalDays) * 100 : todayKey < order.dueDate ? 100 : 0;
-                  status = bufferStatus(pct);
-                } else {
-                  status = bufferStatus((projected / stock.targetLevel) * 100);
-                  projected += order.quantityOutstanding;
-                }
-                if (status === "black" || (status === "red" && stock.targetLevel > 0)) count++;
-              }
-            }
-            return count;
-          })()}</small><small>View purchases →</small></button>}
+          {hasModule("stock") && <button className="metric metric-link" onClick={() => navigateView("stock")}><span>Products</span><strong>{visibleStocks.length.toLocaleString()}</strong><small>Actions needed: {stocks.filter((s) => { if (!(s.targetLevel > 0 || s.quantity > 0)) return false; const pct = s.targetLevel > 0 ? (s.quantity / s.targetLevel) * 100 : Infinity; return pct <= 32; }).length.toLocaleString()}</small><small>View stock →</small></button>}
+          {hasModule("purchase_orders") && <button className="metric metric-link" onClick={() => navigateView("purchases")}><span>PO lines</span><strong>{orders.length.toLocaleString()}</strong><small>Actions needed: {getPurchaseOrderRows(orders, stocks).filter((order) => order.status === "black" || (order.status === "red" && order.workflowType === "PTA")).length.toLocaleString()}</small><small>View purchases →</small></button>}
         </section>
       </section>}
 
