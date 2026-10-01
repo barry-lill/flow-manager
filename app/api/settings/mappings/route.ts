@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (!membership && !isGukAdmin(user.email)) return NextResponse.json({ error: "You do not have access to this organisation." }, { status: 403 });
 
   const [{ data: sources, error: sourceError }, { data: mappings, error: mappingError }] = await Promise.all([
-    admin.from("data_sources").select("source_key,name,description,configured,has_headers,header_row,data_start_row").eq("org_id", orgId),
+    admin.from("data_sources").select("source_key,name,description,configured,has_headers,header_row,data_start_row,last_imported_at").eq("org_id", orgId),
     admin.from("data_mappings").select("source_key,field_key,source_column,required").eq("org_id", orgId),
   ]);
   if (sourceError || mappingError) return NextResponse.json({ error: sourceError?.message || mappingError?.message }, { status: 500 });
