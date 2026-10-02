@@ -40,15 +40,35 @@ export async function GET(request: NextRequest) {
     });
 
     const snapshotDate = londonDateForSnapshot();
-    const { data: stocks, error: stockError } = await admin
-      .from("stock")
-      .select("org_id,stock_code,quantity,target_level");
-    if (stockError) throw new Error(stockError.message);
+    async function fetchAll<T>(table: string, columns: string) {
+      const pageSize = 1000;
+      const all: T[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await admin
+          .from(table)
+          .select(columns)
+          .range(from, from + pageSize - 1);
+        if (error) throw new Error(error.message);
+        const page = (data || []) as T[];
+        all.push(...page);
+        if (page.length < pageSize) break;
+      }
+      return all;
+    }
 
-    const { data: orders, error: orderError } = await admin
-      .from("purchase_orders")
-      .select("org_id,stock_code,quantity_outstanding,workflow_type");
-    if (orderError) throw new Error(orderError.message);
+    const stocks = await fetchAll<{
+      org_id: string;
+      stock_code: string;
+      quantity: number;
+      target_level: number;
+    }>("stock", "org_id,stock_code,quantity,target_level");
+
+    const orders = await fetchAll<{
+      org_id: string;
+      stock_code: string;
+      quantity_outstanding: number;
+      workflow_type: string;
+    }>("purchase_orders", "org_id,stock_code,quantity_outstanding,workflow_type");
 
     const targetByStock = new Map<string, number>();
     for (const stock of stocks || []) {
