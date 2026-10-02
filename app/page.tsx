@@ -165,6 +165,82 @@ function PurchaseOrdersSection({ orders, stocks }: {
   stocks: Stock[];
 }) {
   const rows = useMemo(() => getPurchaseOrderRows(orders, stocks), [orders, stocks]);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string>>({
+    poNumber: "", workflowType: "", stockCode: "", description: "", supplier: "",
+    orderDate: "", dueDate: "", outstanding: "", buffer: ""
+  });
+  const [sort, setSort] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "", direction: "asc" });
+
+  useEffect(() => {
+    if (!activeFilter) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element && !target.closest(".filterable-th")) setActiveFilter(null);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [activeFilter]);
+
+  const filteredRows = useMemo(() => {
+    const filtered = rows.filter((row) => {
+      const f = filters;
+      const pct = row.projectedPct;
+      const [minOutstanding, maxOutstanding] = (f.outstanding || "|").split("|").map(Number);
+      const [minBuffer, maxBuffer] = (f.buffer || "|").split("|").map(Number);
+      if (f.poNumber && !row.poNumber.toLowerCase().includes(f.poNumber.toLowerCase())) return false;
+      if (f.workflowType && row.workflowType !== f.workflowType) return false;
+      if (f.stockCode && !row.stockCode.toLowerCase().includes(f.stockCode.toLowerCase())) return false;
+      if (f.description && !row.description.toLowerCase().includes(f.description.toLowerCase())) return false;
+      if (f.supplier && !row.supplier.toLowerCase().includes(f.supplier.toLowerCase())) return false;
+      if (f.orderDate && !formatUKDate(row.orderDate).includes(f.orderDate)) return false;
+      if (f.dueDate && !formatUKDate(row.dueDate).includes(f.dueDate)) return false;
+      if (f.outstanding && f.outstanding.includes("|")) {
+        if (f.outstanding.split("|")[0] && row.quantityOutstanding < minOutstanding) return false;
+        if (f.outstanding.split("|")[1] && row.quantityOutstanding > maxOutstanding) return false;
+      }
+      if (f.buffer && f.buffer.includes("|")) {
+        if (f.buffer.split("|")[0] && pct < minBuffer) return false;
+        if (f.buffer.split("|")[1] && pct > maxBuffer) return false;
+      }
+      return true;
+    });
+
+    if (!sort.key) return filtered;
+    return [...filtered].sort((a, b) => {
+      let result = 0;
+      if (sort.key === "poNumber") result = a.poNumber.localeCompare(b.poNumber);
+      else if (sort.key === "workflowType") result = a.workflowType.localeCompare(b.workflowType);
+      else if (sort.key === "stockCode") result = a.stockCode.localeCompare(b.stockCode);
+      else if (sort.key === "description") result = a.description.localeCompare(b.description);
+      else if (sort.key === "supplier") result = a.supplier.localeCompare(b.supplier);
+      else if (sort.key === "orderDate") result = (a.orderDate || "").localeCompare(b.orderDate || "");
+      else if (sort.key === "dueDate") result = (a.dueDate || "").localeCompare(b.dueDate || "");
+      else if (sort.key === "outstanding") result = a.quantityOutstanding - b.quantityOutstanding;
+      else if (sort.key === "buffer") result = a.projectedPct - b.projectedPct;
+      return sort.direction === "asc" ? result : -result;
+    });
+  }, [rows, filters, sort]);
+
+  const setFilter = (key: string, value: string) => setFilters(current => ({ ...current, [key]: value }));
+  const filterValue = (key: string) => filters[key] || "";
+  const clearFilters = () => {
+    setFilters({ poNumber: "", workflowType: "", stockCode: "", description: "", supplier: "", orderDate: "", dueDate: "", outstanding: "", buffer: "" });
+    setSort({ key: "", direction: "asc" });
+    setActiveFilter(null);
+  };
+
+  const columns = [
+    ["PO", "poNumber", "text"],
+    ["PTA/PTO", "workflowType", "select"],
+    ["Stock code", "stockCode", "text"],
+    ["Description", "description", "text"],
+    ["Supplier", "supplier", "text"],
+    ["Order date", "orderDate", "text"],
+    ["Due date", "dueDate", "text"],
+    ["Outstanding", "outstanding", "number"],
+    ["Buffer", "buffer", "number"],
+  ] as const;
 
   return <section className="card" id="purchase-orders">
     <div className="section-heading">
@@ -172,11 +248,25 @@ function PurchaseOrdersSection({ orders, stocks }: {
         <h3>Purchase Orders</h3>
         <p>PTA is buffer managed. POs for stock with no target are treated as PTO and time-managed from order date to due date.</p>
       </div>
+      <button onClick={clearFilters}>Clear filters & sort</button>
     </div>
     <div className="table-wrap"><table className="po-table"><thead><tr>
-      <th>PO</th><th>PTA/PTO</th><th>Stock code</th><th>Description</th><th>Supplier</th><th>Order date</th><th>Due date</th><th className="outstanding-header">Outstanding</th><th>Buffer</th>
+      {columns.map(([label, key, type]) => <th key={key} className="filterable-th">
+        <button className={activeFilter === key ? "column-filter-button open" : "column-filter-button"} onClick={() => setActiveFilter(activeFilter === key ? null : key)}>
+          {label}<span>▼</span>
+        </button>
+        {activeFilter === key && <StockColumnMenu
+          label={label}
+          type={type}
+          value={filterValue(key)}
+          onValueChange={(value) => setFilter(key, value)}
+          sort={sort.key === key ? sort.direction : null}
+          onSort={(direction) => { setSort({ key, direction }); setActiveFilter(null); }}
+          options={key === "workflowType" ? ["PTA", "PTO"] : undefined}
+        />}
+      </th>)}
     </tr></thead><tbody>
-      {rows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + order.dueDate + "|" + index}>
+      {filteredRows.map((order, index) => <tr key={order.poNumber + "|" + order.stockCode + "|" + order.dueDate + "|" + index}>
         <td>{order.poNumber}</td>
         <td>{order.workflowType}</td>
         <td>{order.stockCode}</td>
@@ -184,11 +274,12 @@ function PurchaseOrdersSection({ orders, stocks }: {
         <td>{order.supplier}</td>
         <td>{formatUKDate(order.orderDate)}</td>
         <td>{formatUKDate(order.dueDate)}</td>
-        <td>{order.quantityOutstanding.toFixed(5)}</td>
+        <td>{formatQuantity(order.quantityOutstanding)}</td>
         <td><span className={`po-status ${order.status}`}>{Math.round(order.projectedPct)}%</span></td>
       </tr>)}
-      {!rows.length && <tr><td colSpan={9} className="empty">No purchase orders with a stock reference were found.</td></tr>}
+      {!filteredRows.length && <tr><td colSpan={9} className="empty">No purchase orders match the current filters.</td></tr>}
     </tbody></table></div>
+    <p className="footnote">Showing {filteredRows.length.toLocaleString()} of {rows.length.toLocaleString()} purchase order lines.</p>
   </section>;
 }
 export default function Home() {
