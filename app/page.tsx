@@ -84,7 +84,7 @@ function getReplenishments(stocks: Stock[], orders: PurchaseOrder[]) {
       return { ...stock, incomingQty, replenishmentAmount: amount, bufferPct, bufferStatus: bufferStatus(bufferPct) };
     })
     .filter(row => row.replenishmentAmount >= row.moq && row.replenishmentAmount > 0)
-    .sort((a, b) => b.replenishmentAmount - a.replenishmentAmount || a.stockCode.localeCompare(b.stockCode));
+    .sort((a, b) => a.bufferPct - b.bufferPct || a.stockCode.localeCompare(b.stockCode));
 }
 
 function getPurchaseOrderRows(orders: PurchaseOrder[], stocks: Stock[]) {
