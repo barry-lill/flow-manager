@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
   const admin = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
-  const { data: customer, error } = await admin.from("organizations").select("id,name,created_at,organization_modules(module_key,enabled),data_sources(source_key,name,configured)").eq("id", id).single();
+  const { data: customer, error } = await admin.from("organizations").select("id,name,logo_url,created_at,organization_modules(module_key,enabled),data_sources(source_key,name,configured)").eq("id", id).single();
   if (error || !customer) return NextResponse.json({ error: error?.message || "Customer not found." }, { status: 404 });
 
   // Give configured GUK admins view-only access so they can preview the customer app.
@@ -64,24 +64,39 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params;
   const body = await request.json();
-  const modules = Array.isArray(body.modules) ? body.modules.filter((x: unknown) => typeof x === "string") : [];
+  const hasModulesUpdate = Array.isArray(body.modules);
+  const modules = hasModulesUpdate ? body.modules.filter((x: unknown) => typeof x === "string") : [];
+  const hasLogoUpdate = Object.prototype.hasOwnProperty.call(body, "logoUrl");
+  const logoUrl = body.logoUrl === null ? null : typeof body.logoUrl === "string" ? body.logoUrl : undefined;
+  if (hasLogoUpdate && logoUrl !== null && logoUrl !== undefined && !(
+    logoUrl.startsWith("data:image/") || logoUrl.startsWith("/customer-logos/")
+  )) {
+    return NextResponse.json({ error: "Invalid customer logo." }, { status: 400 });
+  }
   const admin = createClient(url, secretKey, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
 
   const { data: existing, error: existingError } = await admin.from("organizations").select("id").eq("id", id).single();
   if (existingError || !existing) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
 
-  const { error: deleteError } = await admin.from("organization_modules").delete().eq("org_id", id);
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
+  if (hasModulesUpdate) {
+    const { error: deleteError } = await admin.from("organization_modules").delete().eq("org_id", id);
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
 
-  if (modules.length) {
-    const { error: insertError } = await admin.from("organization_modules").insert(
-      modules.map((module_key: string) => ({ org_id: id, module_key, enabled: true }))
-    );
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
+    if (modules.length) {
+      const { error: insertError } = await admin.from("organization_modules").insert(
+        modules.map((module_key: string) => ({ org_id: id, module_key, enabled: true }))
+      );
+      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
+    }
+  }
+
+  if (hasLogoUpdate) {
+    const { error: logoError } = await admin.from("organizations").update({ logo_url: logoUrl }).eq("id", id);
+    if (logoError) return NextResponse.json({ error: logoError.message }, { status: 400 });
   }
 
   const { data: customer, error } = await admin.from("organizations")
-    .select("id,name,created_at,organization_modules(module_key,enabled),data_sources(source_key,name,configured)")
+    .select("id,name,logo_url,created_at,organization_modules(module_key,enabled),data_sources(source_key,name,configured)")
     .eq("id", id).single();
   if (error || !customer) return NextResponse.json({ error: error?.message || "Could not reload customer." }, { status: 500 });
   return NextResponse.json({ customer });
