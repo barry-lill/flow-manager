@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
@@ -316,6 +316,7 @@ export default function Home() {
   const [activeStockFilter, setActiveStockFilter] = useState<string | null>(null);
   const [stockFilters, setStockFilters] = useState<StockFilters>({ stockCode: "", description: "", stockGroup: "", minQuantity: "", maxQuantity: "", minTarget: "", maxTarget: "", minPercentage: "", maxPercentage: "" });
   const [stockSort, setStockSort] = useState<{ key: StockSortKey; direction: "asc" | "desc" }>({ key: "percentage", direction: "asc" });
+  const lastScrollYRef = useRef(0);
 
   useEffect(() => {
     if (!activeStockFilter) return;
@@ -599,19 +600,19 @@ export default function Home() {
   const hasModule = (key: string) => enabledModules.includes(key);
 
   useEffect(() => {
+    const rememberScroll = () => { lastScrollYRef.current = window.scrollY; };
     const restoreScroll = () => {
-      const y = window.scrollY;
+      const y = lastScrollYRef.current;
       requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
     };
 
-    const handleVisibilityChange = () => {
+    window.addEventListener("scroll", rememberScroll, { passive: true });
+    document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") restoreScroll();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    });
     window.addEventListener("pageshow", restoreScroll);
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("scroll", rememberScroll);
       window.removeEventListener("pageshow", restoreScroll);
     };
   }, []);
