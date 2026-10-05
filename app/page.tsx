@@ -423,6 +423,7 @@ export default function Home() {
   }
 
   async function loadData(orgId: string) {
+    const preservedScrollY = window.scrollY;
     const stockRows: any[] = [];
     let stockError: any = null;
     for (let from = 0; ; from += 1000) {
@@ -460,6 +461,10 @@ export default function Home() {
     setOrders(mappedOrders);
     setGroups([...new Set(mappedStocks.map((s) => s.stockGroup).filter(Boolean))].sort());
     setMessage(mappedStocks.length ? `Loaded ${mappedStocks.length.toLocaleString()} products and ${mappedOrders.length.toLocaleString()} PO lines.` : "No stock data yet. Import the Sage exports when ready.");
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.scrollTo(0, preservedScrollY));
+    });
   }
 
   useEffect(() => {
@@ -593,7 +598,23 @@ export default function Home() {
 
   const hasModule = (key: string) => enabledModules.includes(key);
 
-  useEffect(() => { setVisibleRowCount(100); }, [stocks]);
+  useEffect(() => {
+    const restoreScroll = () => {
+      const y = window.scrollY;
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") restoreScroll();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", restoreScroll);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", restoreScroll);
+    };
+  }, []);
 
   const visibleStocks = useMemo(() => stocks
     .filter((s) => {
