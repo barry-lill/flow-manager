@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 type Module = { key: string; name: string; sort_order: number };
 type Customer = {
-  id: string; name: string; created_at: string;
+  id: string; name: string; logo_url: string | null; created_at: string;
   organization_modules: { module_key: string; enabled: boolean }[];
   data_sources: { source_key: string; name: string; configured: boolean }[];
 };
@@ -24,6 +24,7 @@ export default function CustomerDetail() {
   const [addingGuk, setAddingGuk] = useState(false);
   const [message, setMessage] = useState("Loading customer...");
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   async function token() {
     const { data } = await supabase.auth.getSession();
@@ -72,6 +73,69 @@ export default function CustomerDetail() {
 
   return <main>
     <header className="topbar"><div><div className="eyebrow">FLOW MANAGER · GUK</div><h1>{customer.name}</h1><p>Customer administration</p></div><Link href="/backoffice">Back to customers</Link></header>
+    <section className="card">
+      <div className="section-heading">
+        <div><h3>Customer branding</h3><p>Upload the logo that should appear above this customer's Flow Manager navigation.</p></div>
+      </div>
+      <div className="branding-editor">
+        <div className="branding-preview">
+          {customer.logo_url ? <img src={customer.logo_url} alt={customer.name} className="customer-logo-preview" /> : <div className="branding-placeholder">{customer.name}</div>}
+        </div>
+        <div>
+          <label className="upload secondary"><span>{logoUploading ? "Uploading..." : "Upload customer logo"}</span><input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.currentTarget.value = "";
+            if (!file) return;
+            if (file.size > 1024 * 1024) { setMessage("Logo must be 1 MB or smaller."); return; }
+            setLogoUploading(true);
+            setMessage("Saving customer logo...");
+            try {
+              const reader = new FileReader();
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(new Error("Could not read the logo file."));
+                reader.readAsDataURL(file);
+              });
+              const accessToken = await token();
+              const response = await fetch("/api/backoffice/customers/" + params.id, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+                body: JSON.stringify({ logoUrl: dataUrl }),
+              });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.error || "Could not save customer logo.");
+              setCustomer(result.customer);
+              setMessage("Customer logo saved.");
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "Could not save customer logo.");
+            } finally {
+              setLogoUploading(false);
+            }
+          }} /></label>
+          {customer.logo_url && <button disabled={logoUploading} onClick={async () => {
+            setLogoUploading(true);
+            setMessage("Removing customer logo...");
+            try {
+              const accessToken = await token();
+              const response = await fetch("/api/backoffice/customers/" + params.id, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: "Bearer " + accessToken },
+                body: JSON.stringify({ logoUrl: null }),
+              });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.error || "Could not remove customer logo.");
+              setCustomer(result.customer);
+              setMessage("Customer logo removed.");
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "Could not remove customer logo.");
+            } finally {
+              setLogoUploading(false);
+            }
+          }}>Remove logo</button>}
+          <p className="footnote">PNG, JPG or WebP · maximum 1 MB.</p>
+        </div>
+      </div>
+    </section>
     <section className="card">
       <div className="section-heading"><div><h2>{customer.name}</h2><p>Created {new Date(customer.created_at).toLocaleDateString("en-GB")}</p></div></div>
       <div className="section-heading"><div><h3>Flow Manager areas</h3><p>Select the areas this customer has access to. You can change these at any time.</p></div></div>
