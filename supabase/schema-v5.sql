@@ -21,3 +21,8 @@ alter table public.purchase_orders
 -- Flow Manager v0.5: track the last successful import separately from settings changes.
 alter table public.data_sources
   add column if not exists last_imported_at timestamptz null;
+
+
+-- Flow Manager v0.7: customer branding
+alter table public.organizations
+  add column if not exists logo_url text;
