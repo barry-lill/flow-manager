@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 type Stock = { stockCode: string; description: string; quantity: number; targetLevel: number; stockGroup: string; moq: number };
 type PurchaseOrder = { poNumber: string; stockCode: string; description: string; supplier: string; orderDate: string; dueDate: string; quantityOutstanding: number; workflowType: "PTA" | "PTO" };
-type Membership = { orgId: string; orgName: string; role: "admin" | "manager" | "viewer" | "guk_viewer" | "guk_admin" };
+type Membership = { orgId: string; orgName: string; logoUrl: string | null; role: "admin" | "manager" | "viewer" | "guk_viewer" | "guk_admin" };
 type Mapping = Record<string, string>;
 type View = "home" | "stock" | "purchases" | "replenishments";
 type StockSortKey = "stockCode" | "description" | "stockGroup" | "quantity" | "targetLevel" | "percentage";
@@ -367,7 +367,7 @@ export default function Home() {
     const previewOrg = new URLSearchParams(window.location.search).get("customer");
     let query = supabase
       .from("memberships")
-      .select("org_id, role, organizations(name)")
+      .select("org_id, role, organizations(name,logo_url)")
       .eq("user_id", session?.user.id);
     if (previewOrg) query = query.eq("org_id", previewOrg);
     const { data, error } = await query.maybeSingle();
@@ -376,7 +376,7 @@ export default function Home() {
     if (!data) { setMembership(null); setMembershipReady(true); return; }
 
     const org = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
-    const next = { orgId: data.org_id, orgName: org?.name ?? "", role: data.role as Membership["role"] };
+    const next = { orgId: data.org_id, orgName: org?.name ?? "", logoUrl: org?.logo_url ?? null, role: data.role as Membership["role"] };
     setMembership(next);
     setMembershipReady(true);
     await loadModules(next.orgId);
@@ -677,16 +677,18 @@ export default function Home() {
           <div className="brand-copy"><div className="brand-title">FLOW MANAGER <span className="beta-badge">BETA</span></div><div className="brand-tagline">Flow, without the fuss.</div></div>
         </div>
         <div className="header-right">
-          <div className="customer-name">{membership.orgName}</div>
-          <nav className="top-nav">
+          <div className="customer-navigation">
+            {membership.logoUrl ? <img src={membership.logoUrl} alt={membership.orgName} className="customer-logo" /> : <div className="customer-name">{membership.orgName}</div>}
+            <nav className="top-nav">
             <button className={view === "home" ? "nav-button active" : "nav-button"} onClick={() => navigateView("home")}>Home</button>
             {hasModule("stock") && <button className={view === "stock" ? "nav-button active" : "nav-button"} onClick={() => navigateView("stock")}>Stock</button>}
             {hasModule("purchase_orders") && <button className={view === "purchases" ? "nav-button active" : "nav-button"} onClick={() => navigateView("purchases")}>Purchases</button>}
             {hasModule("pta") && <button className={view === "replenishments" ? "nav-button active" : "nav-button"} onClick={() => navigateView("replenishments")}>Replenishments</button>}
             {(membership.role === "admin" || isGukAdmin) && <button className="nav-button" onClick={() => window.location.href=isGukAdmin ? "/settings?preview=1&customer=" + membership.orgId : "/settings"}>Settings</button>}
             {isGukAdmin && <button className="nav-button" onClick={() => window.location.href="/backoffice"}>Back Office</button>}
-            <button className="nav-button" onClick={signOut}>Sign out</button>
-          </nav>
+              <button className="nav-button" onClick={signOut}>Sign out</button>
+            </nav>
+          </div>
         </div>
       </header>
 
