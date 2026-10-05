@@ -600,22 +600,43 @@ export default function Home() {
   const hasModule = (key: string) => enabledModules.includes(key);
 
   useEffect(() => {
-    const rememberScroll = () => { lastScrollYRef.current = window.scrollY; };
-    const restoreScroll = () => {
-      const y = lastScrollYRef.current;
-      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, y)));
-    };
+    if (typeof window === "undefined") return;
 
-    window.addEventListener("scroll", rememberScroll, { passive: true });
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") restoreScroll();
-    });
-    window.addEventListener("pageshow", restoreScroll);
-    return () => {
-      window.removeEventListener("scroll", rememberScroll);
-      window.removeEventListener("pageshow", restoreScroll);
+    window.history.scrollRestoration = "manual";
+
+    const storageKey = () => "flow-manager-scroll-" + view;
+    const saveScroll = () => {
+      lastScrollYRef.current = window.scrollY;
+      sessionStorage.setItem(storageKey(), String(window.scrollY));
     };
-  }, []);
+    const restoreScroll = () => {
+      const saved = sessionStorage.getItem(storageKey());
+      const y = saved === null ? 0 : Number(saved);
+      if (!Number.isFinite(y)) return;
+      lastScrollYRef.current = y;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: y, left: 0, behavior: "auto" });
+        });
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") restoreScroll();
+    };
+    const handlePageShow = () => restoreScroll();
+
+    window.addEventListener("scroll", saveScroll, { passive: true });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", handlePageShow);
+    restoreScroll();
+
+    return () => {
+      saveScroll();
+      window.removeEventListener("scroll", saveScroll);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [view]);
 
   const visibleStocks = useMemo(() => stocks
     .filter((s) => {
